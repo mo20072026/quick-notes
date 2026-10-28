@@ -659,10 +659,42 @@
     var m = $('shareMask'); if (m) m.hidden = true;
     document.body.classList.remove('modal-open');
   }
-  /* 退出只读分享：清掉 ?s= / #share= 参数后回到自己的记录 */
-  function exitRo() {
-    try { location.replace(location.origin + location.pathname); }
-    catch (e) { location.href = location.origin + location.pathname; }
+  /* 关闭分享页：直接关标签页，绝不跳回随手记主页 */
+  function closeRoPage() {
+    /* 1) 微信 / QQ 等内置浏览器：用关闭桥 */
+    try {
+      if (window.WeixinJSBridge && typeof window.WeixinJSBridge.call === 'function') {
+        window.WeixinJSBridge.call('closeWindow');
+        setTimeout(afterCloseTry, 400);
+        return;
+      }
+    } catch (e) {}
+    /* 2) 标准 window.close（仅对脚本打开的窗口有效；普通标签页会被浏览器忽略） */
+    try { window.close(); } catch (e) {}
+    setTimeout(afterCloseTry, 300);
+  }
+  /* 若页面还在（说明浏览器不允许自动关闭），退一级：回上一页，再不行给手动关闭提示 */
+  function afterCloseTry() {
+    if (document.hidden) return;                 /* 已经关掉了，定时器不会跑到这里 */
+    var ref = '';
+    try { ref = document.referrer || ''; } catch (e) {}
+    var sameSite = ref && ref.indexOf(location.origin) === 0;  /* 上一页就是随手记自己，不能退回去 */
+    if (!sameSite && history.length > 1) {
+      try { history.back(); } catch (e) {}
+      setTimeout(function () { if (!document.hidden) showBye(); }, 700);
+      return;
+    }
+    showBye();
+  }
+  function showBye() {
+    var bn = $('roBanner'); if (bn) bn.hidden = true;
+    var box = $('listBox');
+    if (box) {
+      box.innerHTML = '<div class="bye-card"><div class="bye-t">分享浏览已结束</div>'
+        + '<div class="muted">浏览器不允许网页自行关闭标签页，请手动关闭本页（不会跳转到随手记主页）。</div>'
+        + '<button class="btn ghost" data-act="roreload">重新查看内容</button></div>';
+    }
+    try { window.scrollTo(0, 0); } catch (e) {}
   }
   function copyShareUrl() {
     var ta = $('shareUrl'); if (!ta) return;
@@ -808,7 +840,9 @@
           shareNotes([sv], '单条'); return;
         }
         if (act === 'closeshare') { closeShare(); return; }
-        if (act === 'exitro') { exitRo(); return; }
+        if (act === 'exitro') { closeRoPage(); return; }
+        if (act === 'roreload') { location.reload(); return; }
+        if (act === 'exitrohome') { location.replace(location.origin + location.pathname); return; }
         if (act === 'goto') { gotoNote(id); return; }
       }
       var pg = e.target.closest('[data-pg]');
@@ -993,7 +1027,8 @@
     bn.className = 'ro-banner ro-bad';
     bn.innerHTML = '<b>分享链接打不开</b>：内容不完整或已被聊天软件截断（收到 ' + raw.length + ' 字符）。<br>'
       + '请让对方重新分享；建议对方在分享窗口点「系统分享」或「复制链接」后再发。'
-      + '<br><button class="linkbtn" data-act="exitro">返回我的记录</button>'
+      + '<br><button class="linkbtn" data-act="exitro">关闭此页</button>'
+      + '<button class="linkbtn" data-act="exitrohome">进入我的随手记</button>'
       + '<span class="muted" style="font-size:11.5px"> （' + esc(String(err && err.message || err).slice(0, 60)) + '）</span>';
     var ed = $('editor'); if (ed) ed.hidden = true;
     var hide = ['menuBtn', 'settingsBtn'];

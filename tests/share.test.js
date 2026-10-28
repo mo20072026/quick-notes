@@ -82,5 +82,27 @@ let r7 = boot('https://mo20072026.github.io/quick-notes/');
 click(r7.w, r7.w.document.getElementById('shareBtn'));
 A('无记录不弹空链接', r7.w.document.getElementById('shareMask').hidden === true);
 
-console.log(fails ? '\n共 ' + fails + ' 项失败' : '\n全部通过');
-process.exit(fails ? 1 : 0);
+/* 7. 关闭分享页：不得跳回随手记主页 */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+(async function () {
+  let r8 = boot(url);
+  const d8 = r8.w.document;
+  const homePath = '/quick-notes/';
+  r8.w.close = function () { };                    /* 模拟浏览器忽略 window.close() */
+  click(r8.w, d8.querySelector('[data-act="exitro"]'));
+  await sleep(500);
+  A('点关闭后仍停留在分享页（未跳主页）',
+    r8.w.location.pathname === homePath && /(^\?s=|#share=)/.test(r8.w.location.search + r8.w.location.hash),
+    r8.w.location.pathname + r8.w.location.search.slice(0, 12));
+  A('显示"分享浏览已结束"提示卡', /分享浏览已结束/.test(d8.getElementById('listBox').textContent));
+  A('提示卡里有手动关闭说明', /手动关闭/.test(d8.getElementById('listBox').textContent));
+
+  /* 8. 坏链接横幅：关闭为主，进入主页为次 */
+  let r9 = boot(url.slice(0, url.length - 40));
+  const bn9 = r9.w.document.getElementById('roBanner');
+  A('坏链接横幅提供关闭按钮', /data-act="exitro"/.test(bn9.innerHTML));
+  A('坏链接横幅另提供进入主页入口', /data-act="exitrohome"/.test(bn9.innerHTML));
+
+  console.log(fails ? '\n共 ' + fails + ' 项失败' : '\n全部通过');
+  process.exit(fails ? 1 : 0);
+})();
