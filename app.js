@@ -400,6 +400,8 @@
     }
     var html = '<div class="viewhead" style="border-left-color:' + vAccent + '"><span class="vname">' + esc(viewName()) + '</span>'
       + (state.search ? '<span class="vsearch">搜索“' + esc(state.search) + '”</span>' : '')
+      + '<select class="vhsel" id="vhCat" title="切换到某分类"><option value="">📂 选分类</option>' + treeOptions('cat', state.view.type === 'cat' ? state.view.id : '') + '</select>'
+      + '<select class="vhsel" id="vhProj" title="切换到某项目"><option value="">📌 选项目</option>' + treeOptions('proj', state.view.type === 'proj' ? state.view.id : '') + '</select>'
       + '<span class="vcount">' + list.length + ' 条</span></div>';
     if (!slice.length) {
       html += '<div class="empty">' + (state.search ? '没有匹配“' + esc(state.search) + '”的记录' : (state.view.type === 'trash' ? '回收站是空的' : '这里还没有记录，在上方写一条吧')) + '</div>';
@@ -430,11 +432,40 @@
     renderList();
     markActiveNav();
     $('editor').style.display = state.view.type === 'trash' ? 'none' : '';
-    /* 记录默认归类到当前所在分类/项目 */
-    var hint = [];
-    if (state.view.type === 'cat') hint.push('将存入分类「' + esc(catPath(state.view.id).join('/')) + '」');
-    if (state.view.type === 'proj') hint.push('将存入项目「' + esc(catPath(state.view.id).join('/')) + '」');
-    $('composerHint').innerHTML = hint.join('　') || '';
+    populatePicker();
+  }
+
+  /* 输入区的分类/项目选择器：默认跟随当前视图 */
+  function populatePicker() {
+    var cs = $('inCat'), ps = $('inProj');
+    if (!cs || !ps) return;
+    var cSel = state.view.type === 'cat' ? state.view.id : '';
+    var pSel = state.view.type === 'proj' ? state.view.id : '';
+    cs.innerHTML = '<option value="">（不归分类）</option>' + treeOptions('cat', cSel);
+    ps.innerHTML = '<option value="">（不归项目）</option>' + treeOptions('proj', pSel);
+    cs.value = cSel || ''; ps.value = pSel || '';
+  }
+  /* 就地新建：重名直接选用已有 */
+  function quickNode(kind) {
+    var name = prompt('新建' + (kind === 'cat' ? '分类' : '项目') + '（重名将直接选用已有的）：');
+    if (name === null) return;
+    name = name.trim();
+    if (!name) { toast('名称不能为空'); return; }
+    var hit = nodes(kind).filter(function (x) { return x.v.name === name; })[0];
+    var id;
+    if (hit) {
+      id = hit.id;
+      toast('已选用已有的「' + name + '」');
+    } else {
+      id = genId();
+      var parent = state.view.type === kind ? state.view.id : null;
+      setNote(id, { kind: kind, name: name, parent: parent, del: 0 });
+      if (parent) { EXP[parent] = true; expSave(EXP); }
+      toast('已创建「' + name + '」');
+    }
+    render();
+    var sel = $(kind === 'cat' ? 'inCat' : 'inProj');
+    if (sel) sel.value = id;
   }
 
   /* ---------- 只读分享视图 ---------- */
@@ -474,8 +505,10 @@
     var auto = false;
     if (!tags.length) { tags = autoKeywords(text); auto = tags.length > 0; }  /* 未手动填标签：自动提取关键词 */
     var obj = { kind: 'note', text: text, tags: tags, c: Date.now(), del: 0 };
-    if (state.view.type === 'cat') obj.cat = state.view.id;
-    if (state.view.type === 'proj') obj.proj = state.view.id;
+    var ic = $('inCat') ? $('inCat').value : '';
+    var ip = $('inProj') ? $('inProj').value : '';
+    if (ic) obj.cat = ic;
+    if (ip) obj.proj = ip;
     setNote(genId(), obj);
     $('noteText').value = ''; $('noteTags').value = '';
     if (state.search) { state.search = ''; $('searchBox').value = ''; }
@@ -729,6 +762,16 @@
       }
     });
 
+    $('listBox').addEventListener('change', function (e) {
+      var t = e.target;
+      if (t.id === 'vhCat' || t.id === 'vhProj') {
+        var v = t.value;
+        state.view = v ? { type: t.id === 'vhCat' ? 'cat' : 'proj', id: v } : { type: 'all' };
+        state.page = 1; state.openRel = null; state.editId = null; state.moveId = null; state.remId = null;
+        render();
+      }
+    });
+
     $('addBtn').addEventListener('click', addNote);
     $('noteText').addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') addNote();
@@ -749,6 +792,8 @@
     $('menuBtn').addEventListener('click', function () {
       $('sidebar').classList.add('open'); $('mask').classList.add('show');
     });
+    $('inCatAdd').addEventListener('click', function () { quickNode('cat'); });
+    $('inProjAdd').addEventListener('click', function () { quickNode('proj'); });
     $('mask').addEventListener('click', closeSidebar);
     $('settingsBtn').addEventListener('click', function () {
       $('sidebar').classList.add('open'); $('mask').classList.add('show');

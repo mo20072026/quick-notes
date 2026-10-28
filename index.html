@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>随手记 · 分类笔记与项目记录</title>
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <header class="topbar">
@@ -96,11 +96,16 @@
 
     <div id="editor">
       <textarea id="noteText" placeholder="随手记点什么…（支持多行）" rows="2"></textarea>
+      <div class="composer-row picker-row">
+        <span class="mv-item">📂 <select id="inCat"></select></span>
+        <button class="mini" id="inCatAdd" title="新建分类（重名自动选用已有）">＋新建</button>
+        <span class="mv-item">📌 <select id="inProj"></select></span>
+        <button class="mini" id="inProjAdd" title="新建项目（重名自动选用已有）">＋新建</button>
+      </div>
       <div class="composer-row">
-        <input id="noteTags" type="text" placeholder="标签（空格分隔，可留空）">
+        <input id="noteTags" type="text" placeholder="标签（空格分隔，可留空，留空自动提取）">
         <button class="btn dark" id="addBtn">＋ 保存记录</button>
       </div>
-      <div class="muted" id="composerHint"></div>
     </div>
 
     <div class="toolbar">
@@ -118,6 +123,6 @@
 <div id="toast"></div>
 
 <script src="gh-sync.js?v=1"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
