@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>随手记 · 分类笔记与项目记录</title>
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" title="目录">☰</button>
+  <div class="brand">📝 随手记</div>
+  <span class="sync">
+    <span class="dot" id="ghStatusDot"></span><span id="ghStatusText">本地就绪</span>
+    <span id="syncAgo"></span>
+    <button class="btn ghost sm" data-gh="push" hidden id="syncRetry">重试</button>
+  </span>
+  <div class="spacer"></div>
+  <button class="btn ghost sm" id="settingsBtn" title="设置与同步">设置</button>
+</header>
+
+<div class="layout">
+  <!-- ============ 侧栏 · 总目录 ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="side-scroll">
+      <div class="side-sec">
+        <div class="side-title">快速入口</div>
+        <div class="tree-item" data-act="view" data-view="all" id="nav-all">
+          <span class="tname">📋 全部记录</span><span class="cnt" id="cnt-all"></span>
+        </div>
+        <div class="tree-item" data-act="view" data-view="trash" id="nav-trash">
+          <span class="tname">🗑 回收站</span><span class="cnt" id="cnt-trash"></span>
+        </div>
+      </div>
+
+      <div class="side-sec">
+        <div class="side-title">分类目录 <button class="mini" data-act="addroot" data-kind="cat" title="新建顶级分类">＋</button></div>
+        <div id="catTree"></div>
+      </div>
+
+      <div class="side-sec">
+        <div class="side-title">项目 <button class="mini" data-act="addroot" data-kind="proj" title="新建顶级项目">＋</button></div>
+        <div id="projTree"></div>
+      </div>
+
+      <!-- 跨设备同步设置 -->
+      <div class="side-sec" id="settingsSec">
+        <div class="side-title">跨设备同步</div>
+        <div class="card">
+          <div class="muted" style="margin-bottom:10px">每台设备填<strong>同一个</strong> Token，数据自动经你账号下的私有 Gist 同步，不经第三方服务器。</div>
+          <div class="field">
+            <label for="ghToken">GitHub Token（只勾 gist）</label>
+            <input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_… 或 github_pat_…">
+          </div>
+          <div class="row">
+            <button class="btn dark sm" data-gh="push">上传</button>
+            <button class="btn ghost sm" data-gh="pull">拉取</button>
+            <button class="btn ghost sm" data-gh="test">验证</button>
+            <button class="btn ghost sm" data-gh="diag">自检</button>
+            <button class="btn ghost sm" data-gh="unify">统一</button>
+          </div>
+          <div id="ghBox" style="margin-top:10px"></div>
+          <label class="chk" style="margin-top:8px"><input id="ghAuto" type="checkbox"> 自动同步</label>
+          <details style="margin-top:10px">
+            <summary class="muted" style="cursor:pointer;font-size:12px">高级：Gist ID / 同步码</summary>
+            <div class="field" style="margin-top:8px">
+              <input id="ghGist" type="text" autocomplete="off" spellcheck="false" placeholder="Gist ID（留空自动查找）">
+            </div>
+            <div class="field">
+              <input id="ghCode" type="text" autocomplete="off" spellcheck="false" placeholder="同步码 / 同步链接，粘贴后回车">
+            </div>
+            <div class="row">
+              <button class="btn dark sm" data-gh="copyCode">复制同步码</button>
+              <button class="btn ghost sm" data-gh="copyLink">复制同步链接</button>
+              <button class="btn ghost sm" data-gh="importCode">接入</button>
+              <button class="btn ghost sm" data-gh="forget">忘记此设备</button>
+            </div>
+          </details>
+          <div class="muted" style="margin-top:8px">
+            <a href="https://github.com/settings/tokens/new?scopes=gist" target="_blank" rel="noopener">生成 Token</a>（勾选 <code>gist</code>）。
+          </div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:8px;line-height:1.6">
+          关联规则：同分类 / 同项目 / 有共同标签的记录自动互相关联；无需手动维护。
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="mask" id="mask"></div>
+
+  <!-- ============ 主区 ============ -->
+  <main class="main">
+    <div id="roBanner" class="ro-banner" hidden>
+      只读分享视图 · 共 <b id="roCount">0</b> 条，由对方通过分享链接发送。<a href="javascript:location.hash='';location.reload()">退出</a>
+    </div>
+
+    <div id="editor">
+      <textarea id="noteText" placeholder="随手记点什么…（支持多行）" rows="2"></textarea>
+      <div class="composer-row">
+        <input id="noteTags" type="text" placeholder="标签（空格分隔，可留空）">
+        <button class="btn dark" id="addBtn">＋ 保存记录</button>
+      </div>
+      <div class="muted" id="composerHint"></div>
+    </div>
+
+    <div class="toolbar">
+      <input id="searchBox" type="search" placeholder="🔍 检索内容 / 标签 / 分类 / 项目…">
+      <button class="btn ghost sm" id="expMdBtn">导出 Markdown</button>
+      <button class="btn ghost sm" id="expJsonBtn">导出 JSON</button>
+      <button class="btn ghost sm" id="shareBtn" title="把当前筛选结果生成只读链接给他人">分享链接</button>
+    </div>
+
+    <div class="crumb" id="crumb"></div>
+    <div id="listBox"></div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script src="gh-sync.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
