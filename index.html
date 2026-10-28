@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>随手记 · 分类笔记与项目记录</title>
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <header class="topbar">
@@ -111,7 +111,7 @@
 
     <div class="toolbar">
       <input id="searchBox" type="search" placeholder="🔍 检索内容 / 标签 / 分类 / 项目…">
-      <button class="btn ghost sm" id="expMdBtn">导出 Markdown</button>
+      <button class="btn ghost sm" id="expXlsBtn" title="导出为 Excel 表格（.xlsx）">导出 Excel</button>
       <button class="btn ghost sm" id="expJsonBtn">导出 JSON</button>
       <button class="btn ghost sm" id="shareBtn" title="把当前筛选结果生成只读链接给他人">分享链接</button>
     </div>
@@ -147,6 +147,7 @@
 </div>
 
 <script src="gh-sync.js?v=1"></script>
-<script src="app.js?v=7"></script>
+<script src="export-xlsx.js?v=1"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

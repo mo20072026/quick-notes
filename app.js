@@ -579,25 +579,36 @@
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   }
-  function exportMd() {
+  /* 导出 Excel（.xlsx）：内容/分类/项目/标签/时间/状态一行一条，可直接排序筛选 */
+  function exportExcel() {
     var list = currentNotes();
     if (!list.length) { toast('当前视图没有可导出的记录'); return; }
-    var lines = ['# 随手记导出 · ' + viewName(), '', '导出时间：' + fmtT(Date.now()) + '，共 ' + list.length + ' 条', ''];
-    list.forEach(function (x) {
-      var v = x.v;
-      lines.push('## ' + fmtT(v.c));
-      lines.push('');
-      lines.push(v.text || '');
-      var meta = [];
-      if (v.cat) meta.push('分类：' + catPath(v.cat).join('/'));
-      if (v.proj) meta.push('项目：' + catPath(v.proj).join('/'));
-      if ((v.tags || []).length) meta.push('标签：' + v.tags.map(function (t) { return '#' + t; }).join(' '));
-      if (v.u && v.u !== v.c) meta.push('修改于：' + fmtT(v.u));
-      if (meta.length) lines.push('', '-' + meta.join(' ／ '));
-      lines.push('');
+    if (typeof XlsxExport === 'undefined') { toast('导出模块未加载，请刷新页面'); return; }
+    var rows = list.map(function (x, i) {
+      var v = (x && x.v) ? x.v : (x || {});
+      var cat = v.cat && node(v.cat) ? catPath(v.cat).join(' / ') : (v.cat ? String(v.cat) : '');
+      var prj = v.proj && node(v.proj) ? catPath(v.proj).join(' / ') : (v.proj ? String(v.proj) : '');
+      return [
+        i + 1,
+        v.text || '',
+        cat,
+        prj,
+        (v.tags || []).map(function (t) { return '#' + t; }).join(' '),
+        fmtT(v.c),
+        (v.u && v.u !== v.c) ? fmtT(v.u) : '',
+        v.remindAt ? fmtT(v.remindAt) : '',
+        v.del ? '回收站' : '正常'
+      ];
     });
-    download('随手记_' + stamp() + '.md', lines.join('\n'), 'text/markdown;charset=utf-8');
-    toast('已导出 Markdown（' + list.length + ' 条）');
+    var cols = [
+      { title: '序号', width: 6 }, { title: '内容', width: 60 },
+      { title: '分类', width: 22 }, { title: '项目', width: 22 },
+      { title: '标签', width: 22 }, { title: '创建时间', width: 18 },
+      { title: '修改时间', width: 18 }, { title: '提醒时间', width: 18 },
+      { title: '状态', width: 8 }
+    ];
+    XlsxExport.download('随手记_' + stamp() + '.xlsx', { sheet: viewName() || '随手记', columns: cols, rows: rows });
+    toast('已导出 Excel（' + list.length + ' 条）');
   }
   function exportJson() {
     var list = currentNotes();
@@ -882,7 +893,7 @@
         renderList();
       }, 200);
     });
-    $('expMdBtn').addEventListener('click', exportMd);
+    $('expXlsBtn').addEventListener('click', exportExcel);
     $('expJsonBtn').addEventListener('click', exportJson);
     $('shareBtn').addEventListener('click', function () { shareNotes(currentNotes(), '当前筛选结果'); });
     /* 分享弹窗 */

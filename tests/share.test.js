@@ -17,6 +17,7 @@ const { JSDOM } = loadJsdom();
 const dir = path.join(__dirname, '..') + path.sep;
 const html = fs.readFileSync(dir + 'index.html', 'utf8');
 const appJs = fs.readFileSync(dir + 'app.js', 'utf8');
+const xlsxJs = fs.readFileSync(dir + 'export-xlsx.js', 'utf8');
 let fails = 0;
 function A(name, cond, extra) {
   if (!cond) fails++;
@@ -28,6 +29,7 @@ function boot(url, seed) {
   const store = { data: () => db, set: (id, o) => { db[id] = o; }, state: () => ({ token: '' }), init: () => { } };
   if (seed) seed(store);
   w.GhSync = store;
+  try { w.eval(xlsxJs); } catch (e) { console.log('XLSX EVAL ERROR:', e.message); }
   try { w.eval(appJs); } catch (e) { console.log('EVAL ERROR:', e.message); }
   w.document.dispatchEvent(new w.Event('DOMContentLoaded', { bubbles: true }));
   return { w, store };
@@ -102,6 +104,32 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const bn9 = r9.w.document.getElementById('roBanner');
   A('坏链接横幅提供关闭按钮', /data-act="exitro"/.test(bn9.innerHTML));
   A('坏链接横幅另提供进入主页入口', /data-act="exitrohome"/.test(bn9.innerHTML));
+
+  /* 9. 导出 Excel 表格 */
+  let rx = boot('https://mo20072026.github.io/quick-notes/');
+  rx.store.set('c1', { kind: 'cat', name: '工作', parent: '', del: 0 });
+  rx.store.set('c1b', { kind: 'cat', name: '子分类', parent: 'c1', del: 0 });
+  rx.store.set('n1', { kind: 'note', text: '导出测试 CBI20261123', tags: ['标签A', '标签B'], cat: 'c1b', c: 1698000000000, del: 0 });
+  click(rx.w, rx.w.document.getElementById('nav-all'));
+  let cap = null;
+  const realBuild = rx.w.XlsxExport.build;
+  rx.w.XlsxExport.download = function (name, opts) { cap = { name: name, opts: opts, bytes: realBuild(opts) }; };
+  const xlsBtn = rx.w.document.getElementById('expXlsBtn');
+  A('有「导出 Excel」按钮（原 Markdown 已替换）', !!xlsBtn && /Excel/.test(xlsBtn.textContent));
+  if (xlsBtn) click(rx.w, xlsBtn);
+  A('点击后触发导出', !!cap, cap && cap.name);
+  if (cap) {
+    A('文件名后缀 .xlsx', /\.xlsx$/.test(cap.name));
+    A('表头 9 列齐全', cap.opts.columns.map(c => c.title).join(',') === '序号,内容,分类,项目,标签,创建时间,修改时间,提醒时间,状态',
+      cap.opts.columns.map(c => c.title).join(','));
+    A('数据行内容正确（含分类路径与标签）',
+      cap.opts.rows.length === 1 && /CBI20261123/.test(cap.opts.rows[0][1])
+      && cap.opts.rows[0][2] === '工作 / 子分类' && cap.opts.rows[0][4] === '#标签A #标签B',
+      JSON.stringify(cap.opts.rows[0]));
+    A('生成的是合法 zip（PK 头）', cap.bytes[0] === 0x50 && cap.bytes[1] === 0x4B && cap.bytes.length > 1000, cap.bytes.length + ' 字节');
+    fs.writeFileSync(path.join(require('os').tmpdir(), 'quick-notes-export.xlsx'), Buffer.from(cap.bytes));
+    console.log('     导出样本已存：' + path.join(require('os').tmpdir(), 'quick-notes-export.xlsx'));
+  }
 
   console.log(fails ? '\n共 ' + fails + ' 项失败' : '\n全部通过');
   process.exit(fails ? 1 : 0);
