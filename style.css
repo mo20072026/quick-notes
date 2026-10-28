@@ -143,6 +143,29 @@ a { color: #0969da; }
 code { background: #eff1f3; border-radius: 4px; padding: 0 4px; font-size: 12px; }
 .card { background: #fff; border: 1px solid #e4e7eb; border-radius: 10px; padding: 12px; }
 
+/* 设置区折叠 */
+details.side-sec > summary { cursor: pointer; user-select: none; }
+details.side-sec > summary::after { content: '▸'; margin-left: 6px; color: #8b949e; font-size: 11px; }
+details.side-sec[open] > summary::after { content: '▾'; }
+
+/* 色彩体系：树彩点 / 路径彩点 */
+.tdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.dotmark { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 3px; vertical-align: -1px; }
+
+/* 列表头（视图标题条） */
+.viewhead {
+  display: flex; align-items: center; gap: 10px;
+  background: #fff; border: 1px solid #e4e7eb; border-left: 4px solid #0969da;
+  border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.viewhead .vname { font-weight: 700; font-size: 15px; }
+.viewhead .vsearch { font-size: 12.5px; color: #8b949e; }
+.viewhead .vcount {
+  margin-left: auto; background: #eef3fe; color: #1d4ed8; border-radius: 12px;
+  padding: 1px 10px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+}
+
 /* toast */
 #toast {
   position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%) translateY(20px);

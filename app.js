@@ -31,6 +31,18 @@
     return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
   }
   function genId() { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  /* 配色：按 id/name 稳定哈希出固定色相，同一分类/项目/标签永远同色 */
+  function hueOf(s) {
+    s = String(s || 'x');
+    var h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    return h;
+  }
+  function catColor(id) { return 'hsl(' + hueOf(id) + ',62%,46%)'; }
+  function tagStyle(t) {
+    var h = hueOf(t);
+    return 'background:hsl(' + h + ',72%,93%);color:hsl(' + h + ',62%,32%);border:1px solid hsl(' + h + ',55%,85%)';
+  }
   function b64enc(s) {
     return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
@@ -175,6 +187,7 @@
         var active = state.view.type === kind && state.view.id === x.id;
         html.push('<div class="tree-item' + (active ? ' active' : '') + '" style="padding-left:' + (6 + depth * 16) + 'px" data-act="view" data-view="' + kind + ':' + esc(x.id) + '" data-id="' + esc(x.id) + '">'
           + '<span class="tgl" data-act="toggle" data-id="' + esc(x.id) + '">' + (kids.length ? (open ? '▾' : '▸') : '') + '</span>'
+          + '<span class="tdot" style="background:' + catColor(x.id) + '"></span>'
           + '<span class="tname">' + esc(x.v.name) + '</span>'
           + '<span class="cnt">' + countIn(x.id, kind) + '</span>'
           + '<span class="rops">'
@@ -207,11 +220,12 @@
       + '<span class="rel-why">' + esc(r.why) + '</span></div>';
   }
   function noteCardHtml(id, v) {
+    var accent = v.cat ? catColor(v.cat) : (v.proj ? catColor(v.proj) : '#b7bfc7');
     var pathBits = [];
-    if (v.cat) pathBits.push('📂 ' + esc(catPath(v.cat).join(' / ')));
-    if (v.proj) pathBits.push('📌 ' + esc(catPath(v.proj).join(' / ')));
+    if (v.cat) pathBits.push('<span class="dotmark" style="background:' + catColor(v.cat) + '"></span>📂 ' + esc(catPath(v.cat).join(' / ')));
+    if (v.proj) pathBits.push('<span class="dotmark" style="background:' + catColor(v.proj) + '"></span>📌 ' + esc(catPath(v.proj).join(' / ')));
     var tags = (v.tags || []).map(function (t) {
-      return '<span class="tagchip" data-act="tag" data-tag="' + esc(t) + '">#' + esc(t) + '</span>';
+      return '<span class="tagchip" style="' + tagStyle(t) + '" data-act="tag" data-tag="' + esc(t) + '">#' + esc(t) + '</span>';
     }).join('');
     var rel = related(id);
     var relHtml = '';
@@ -246,7 +260,7 @@
         + '<button class="btn ghost sm" data-act="cancelmove">取消</button>'
         + '</div>';
     }
-    return '<div class="note-card" id="nc-' + esc(id) + '">'
+    return '<div class="note-card" id="nc-' + esc(id) + '" style="border-left:4px solid ' + accent + '">'
       + '<div class="note-head"><span>🕐 ' + timeStr + '</span>'
       + (pathBits.length ? '<span class="path">' + pathBits.join(' ｜ ') + '</span>' : '')
       + '</div>'
@@ -297,8 +311,14 @@
     state.page = page;
     var start = (page - 1) * PAGE;
     var slice = list.slice(start, start + PAGE);
-    var html = '<div class="crumb" id="crumbInner"><span>' + esc(viewName()) + '</span><b>' + list.length + '</b> 条'
-      + (state.search ? ' · 搜索“' + esc(state.search) + '”' : '') + '</div>';
+    var vAccent = '#0969da';
+    if (state.view.type === 'cat' || state.view.type === 'proj') {
+      var vv = all()[state.view.id];
+      if (vv) vAccent = catColor(state.view.id);
+    }
+    var html = '<div class="viewhead" style="border-left-color:' + vAccent + '"><span class="vname">' + esc(viewName()) + '</span>'
+      + (state.search ? '<span class="vsearch">搜索“' + esc(state.search) + '”</span>' : '')
+      + '<span class="vcount">' + list.length + ' 条</span></div>';
     if (!slice.length) {
       html += '<div class="empty">' + (state.search ? '没有匹配“' + esc(state.search) + '”的记录' : (state.view.type === 'trash' ? '回收站是空的' : '这里还没有记录，在上方写一条吧')) + '</div>';
     } else {
@@ -346,10 +366,11 @@
     var html = '<div class="crumb"><span>只读分享 · 共 ' + RO.length + ' 条</span></div>';
     html += slice.map(function (n) {
       var bits = [];
-      if (n.cat) bits.push('📂 ' + esc(n.cat));
-      if (n.proj) bits.push('📌 ' + esc(n.proj));
-      var tags = (n.tags || []).map(function (t) { return '<span class="tagchip">#' + esc(t) + '</span>'; }).join('');
-      return '<div class="note-card"><div class="note-head"><span>🕐 ' + fmtT(n.c) + '</span>'
+      var accent = n.cat ? catColor(n.cat) : (n.proj ? catColor(n.proj) : '#b7bfc7');
+      if (n.cat) bits.push('<span class="dotmark" style="background:' + catColor(n.cat) + '"></span>📂 ' + esc(n.cat));
+      if (n.proj) bits.push('<span class="dotmark" style="background:' + catColor(n.proj) + '"></span>📌 ' + esc(n.proj));
+      var tags = (n.tags || []).map(function (t) { return '<span class="tagchip" style="' + tagStyle(t) + '">#' + esc(t) + '</span>'; }).join('');
+      return '<div class="note-card" style="border-left:4px solid ' + accent + '"><div class="note-head"><span>🕐 ' + fmtT(n.c) + '</span>'
         + (bits.length ? '<span class="path">' + bits.join(' ｜ ') + '</span>' : '') + '</div>'
         + '<div class="note-text">' + esc(n.text) + '</div>'
         + (tags ? '<div style="margin-top:6px">' + tags + '</div>' : '') + '</div>';
@@ -620,6 +641,8 @@
     $('mask').addEventListener('click', closeSidebar);
     $('settingsBtn').addEventListener('click', function () {
       $('sidebar').classList.add('open'); $('mask').classList.add('show');
+      var sec = $('settingsSec');
+      if (sec) sec.open = true;
       $('settingsSec').scrollIntoView({ block: 'start' });
     });
   }

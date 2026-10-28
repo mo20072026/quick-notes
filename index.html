@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>随手记 · 分类笔记与项目记录</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 <header class="topbar">
@@ -43,9 +43,9 @@
         <div id="projTree"></div>
       </div>
 
-      <!-- 跨设备同步设置 -->
-      <div class="side-sec" id="settingsSec">
-        <div class="side-title">跨设备同步</div>
+      <!-- 跨设备同步设置（默认折叠） -->
+      <details class="side-sec" id="settingsSec">
+        <summary class="side-title">⚙ 跨设备同步</summary>
         <div class="card">
           <div class="muted" style="margin-bottom:10px">每台设备填<strong>同一个</strong> Token，数据自动经你账号下的私有 Gist 同步，不经第三方服务器。</div>
           <div class="field">
@@ -83,7 +83,7 @@
         <div class="muted" style="font-size:11px;margin-top:8px;line-height:1.6">
           关联规则：同分类 / 同项目 / 有共同标签的记录自动互相关联；无需手动维护。
         </div>
-      </div>
+      </details>
     </div>
   </aside>
   <div class="mask" id="mask"></div>
@@ -118,6 +118,6 @@
 <div id="toast"></div>
 
 <script src="gh-sync.js?v=1"></script>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
