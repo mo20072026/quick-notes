@@ -14,6 +14,7 @@
     page: 1,
     editId: null,                 // 正在编辑的记录 id
     moveId: null,                 // 正在调整归属（分类/项目）的记录 id
+    remId: null,                  // 正在设置提醒的记录 id
     openRel: null                 // 展开关联的记录 id
   };
   var RO = null;                  // 只读分享视图数据（数组）
@@ -30,6 +31,11 @@
     var d = new Date(ms);
     return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
   }
+  function dtlVal(ms) {  /* datetime-local 输入框的值 */
+    if (!ms) return '';
+    var d = new Date(ms);
+    return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+  }
   function genId() { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   /* 配色：按 id/name 稳定哈希出固定色相，同一分类/项目/标签永远同色 */
   function hueOf(s) {
@@ -42,6 +48,65 @@
   function tagStyle(t) {
     var h = hueOf(t);
     return 'background:hsl(' + h + ',72%,93%);color:hsl(' + h + ',62%,32%);border:1px solid hsl(' + h + ',55%,85%)';
+  }
+
+  /* ---------- 自动关键词提取（未填标签时） ---------- */
+  var STOPSET = {};
+  '我们 你们 他们 这个 那个 现在 今天 明天 昨天 时候 可以 可能 就是 还是 也是 如果 但是 因为 所以 然后 不过 已经 或者 以及 以上 以下 之后 之前 什么 怎么 一个 一些 自己 这样 那样 需要 应该 关于 通过 进行 使用'.split(' ').forEach(function (w) { STOPSET[w] = 1; });
+  function autoKeywords(text) {
+    var out = [], seen = {};
+    function add(w) {
+      w = String(w || '').trim();
+      if (w && w.length >= 2 && !seen[w] && out.length < 3) { seen[w] = 1; out.push(w); }
+    }
+    var t = String(text || '').slice(0, 400);
+    /* 数字/字母词：CBI20261123、400*50 这类整体保留 */
+    (t.match(/[A-Za-z][A-Za-z0-9_\-\/\*.]{2,19}|\d[A-Za-z0-9_\-\/\*.]{1,19}/g) || []).forEach(add);
+    /* 中文高频 2-3 字组合 */
+    var segs = t.replace(/[^\u4e00-\u9fa5]+/g, '|').split('|').filter(function (s) { return s.length >= 2; });
+    var freq = {};
+    segs.forEach(function (s) {
+      for (var n = 2; n <= 3; n++)
+        for (var i = 0; i + n <= s.length; i++) {
+          var g = s.substr(i, n);
+          freq[g] = (freq[g] || 0) + 1;
+        }
+    });
+    Object.keys(freq).filter(function (g) { return freq[g] >= 2 && !STOPSET[g]; })
+      .sort(function (a, b) { return freq[b] * b.length - freq[a] * a.length; })
+      .forEach(function (g) {
+        if (out.every(function (w) { return w.indexOf(g) < 0 && g.indexOf(w) < 0; })) add(g);
+      });
+    /* 兜底：无重复词时取最长中文段前 2-4 字 */
+    if (!out.length && segs.length) {
+      segs.sort(function (a, b) { return b.length - a.length; });
+      if (segs[0].length >= 2) add(segs[0].substr(0, Math.min(4, segs[0].length)));
+    }
+    return out;
+  }
+
+  /* ---------- 日历 .ics（关联手机/电脑日历） ---------- */
+  function icsTime(ms) {
+    var d = new Date(ms);
+    return d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate()) + 'T' + p2(d.getUTCHours()) + p2(d.getUTCMinutes()) + '00Z';
+  }
+  function icsEsc(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\n/g, '\\n'); }
+  function downloadIcs(id) {
+    var v = all()[id]; if (!v) return;
+    var inp = $('remAt');
+    var when = (inp && inp.value) ? new Date(inp.value).getTime() : v.remindAt;
+    if (!when || isNaN(when)) { toast('请先设置提醒时间'); return; }
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//suishouji//CN', 'BEGIN:VEVENT',
+      'UID:qn-' + id + '@quick-notes',
+      'DTSTAMP:' + icsTime(Date.now()),
+      'DTSTART:' + icsTime(when),
+      'DTEND:' + icsTime(when + 15 * 60000),
+      'SUMMARY:' + icsEsc((v.text || '随手记提醒').slice(0, 80)),
+      'DESCRIPTION:' + icsEsc((v.text || '').slice(0, 300)),
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:随手记提醒', 'TRIGGER:-PT0M', 'END:VALARM',
+      'END:VEVENT', 'END:VCALENDAR'];
+    download('随手记提醒_' + stamp() + '.ics', lines.join('\r\n'), 'text/calendar;charset=utf-8');
+    toast('已下载 .ics：手机上打开即可加入系统日历并由手机提醒');
   }
   function b64enc(s) {
     return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -242,14 +307,31 @@
       body = '<div class="note-text">' + hlText(v.text) + '</div>';
     }
     var timeStr = fmtT(v.c) + (v.u && v.u !== v.c ? ' · 修改于 ' + fmtT(v.u) : '');
+    var remBadge = '';
+    if (v.remindAt) {
+      var over = !v.remDone && v.remindAt <= Date.now();
+      remBadge = '<span class="rembadge' + (v.remDone ? ' done' : (over ? ' over' : '')) + '">⏰ ' + fmtT(v.remindAt) + (v.remDone ? ' · 已提醒' : (over ? ' · 已到时间' : '')) + '</span>';
+    }
     var foot;
     if (state.view.type === 'trash') {
       foot = '<button class="linkbtn" data-act="restore" data-id="' + esc(id) + '">恢复</button>';
     } else {
       foot = '<button class="linkbtn" data-act="edit" data-id="' + esc(id) + '">编辑</button>'
         + '<button class="linkbtn" data-act="move" data-id="' + esc(id) + '">归属</button>'
+        + '<button class="linkbtn" data-act="rem" data-id="' + esc(id) + '">⏰ 提醒</button>'
         + '<button class="linkbtn" data-act="delnote" data-id="' + esc(id) + '">删除</button>'
         + '<button class="linkbtn" data-act="shareone" data-id="' + esc(id) + '">分享此条</button>';
+    }
+    var remHtml = '';
+    if (state.remId === id) {
+      remHtml = '<div class="mv-box">'
+        + '<label class="mv-item">提醒时间 <input type="datetime-local" id="remAt" value="' + dtlVal(v.remindAt) + '"></label>'
+        + '<button class="btn dark sm" data-act="saverem" data-id="' + esc(id) + '">保存提醒</button>'
+        + '<button class="btn ghost sm" data-act="clearrem" data-id="' + esc(id) + '">清除</button>'
+        + '<button class="btn ghost sm" data-act="ics" data-id="' + esc(id) + '">加入日历（.ics）</button>'
+        + '<button class="btn ghost sm" data-act="cancelrem">收起</button>'
+        + '<span class="muted">点「加入日历」下载 .ics：手机上打开会调起系统日历，提醒由手机负责；网页端到点弹窗提醒。</span>'
+        + '</div>';
     }
     var moveHtml = '';
     if (state.moveId === id) {
@@ -261,14 +343,14 @@
         + '</div>';
     }
     return '<div class="note-card" id="nc-' + esc(id) + '" style="border-left:4px solid ' + accent + '">'
-      + '<div class="note-head"><span>🕐 ' + timeStr + '</span>'
+      + '<div class="note-head"><span>🕐 ' + timeStr + '</span>' + remBadge
       + (pathBits.length ? '<span class="path">' + pathBits.join(' ｜ ') + '</span>' : '')
       + '</div>'
       + body
       + (tags ? '<div style="margin-top:6px">' + tags + '</div>' : '')
       + '<div class="note-foot">' + foot
       + (state.view.type !== 'trash' ? '<button class="linkbtn" data-act="rel" data-id="' + esc(id) + '">关联 ' + rel.length + ' 条 ▾</button>' : '')
-      + '</div>' + moveHtml + relHtml + '</div>';
+      + '</div>' + moveHtml + remHtml + relHtml + '</div>';
   }
   /* 下拉选项：整棵树按层级缩进 */
   function treeOptions(kind, selected) {
@@ -389,6 +471,8 @@
     var text = $('noteText').value.trim();
     if (!text) { toast('先写点内容'); return; }
     var tags = $('noteTags').value.trim().split(/[\s,，、]+/).filter(Boolean);
+    var auto = false;
+    if (!tags.length) { tags = autoKeywords(text); auto = tags.length > 0; }  /* 未手动填标签：自动提取关键词 */
     var obj = { kind: 'note', text: text, tags: tags, c: Date.now(), del: 0 };
     if (state.view.type === 'cat') obj.cat = state.view.id;
     if (state.view.type === 'proj') obj.proj = state.view.id;
@@ -397,7 +481,7 @@
     if (state.search) { state.search = ''; $('searchBox').value = ''; }
     state.page = 1;
     render();
-    toast('已记录' + (GhSync.state().token ? '，将自动同步' : '（本地保存，填 Token 后同步）'));
+    toast('已记录' + (auto ? '，自动标签：#' + tags.join(' #') : '') + (GhSync.state().token ? '' : '（本地保存，填 Token 后同步）'));
   }
   function delNode(kind, id) {
     var kids = children(id, kind);
@@ -537,7 +621,7 @@
           var vw = t.getAttribute('data-view');
           if (vw === 'all' || vw === 'trash') state.view = { type: vw };
           else { var p = vw.split(':'); state.view = { type: p[0], id: p[1] }; }
-          state.page = 1; state.openRel = null; state.editId = null; state.moveId = null;
+          state.page = 1; state.openRel = null; state.editId = null; state.moveId = null; state.remId = null;
           closeSidebar(); render();
           return;
         }
@@ -563,6 +647,33 @@
         }
         if (act === 'edit') { state.editId = id; state.moveId = null; renderList(); return; }
         if (act === 'canceledit') { state.editId = null; renderList(); return; }
+        if (act === 'rem') { state.remId = state.remId === id ? null : id; state.moveId = null; state.editId = null; renderList(); return; }
+        if (act === 'cancelrem') { state.remId = null; renderList(); return; }
+        if (act === 'saverem') {
+          var rv0 = all()[id];
+          var iv = $('remAt') ? $('remAt').value : '';
+          if (!rv0) return;
+          if (!iv) { toast('请选择提醒时间'); return; }
+          var when = new Date(iv).getTime();
+          if (isNaN(when)) { toast('时间格式无法识别'); return; }
+          setNote(id, Object.assign({}, rv0, { remindAt: when, remDone: 0 }));
+          state.remId = null;
+          renderList();
+          setTimeout(checkReminders, 200);
+          toast('提醒已设置：' + fmtT(when) + '，到点网页弹窗提醒');
+          return;
+        }
+        if (act === 'clearrem') {
+          var rc = all()[id];
+          if (rc) {
+            var clean = Object.assign({}, rc);
+            delete clean.remindAt; delete clean.remDone;
+            setNote(id, clean);
+          }
+          state.remId = null; renderList(); toast('已清除提醒');
+          return;
+        }
+        if (act === 'ics') { downloadIcs(id); return; }
         if (act === 'saveedit') {
           var v = all()[id]; var ta = $('editText');
           if (v && ta && ta.value.trim()) {
@@ -571,7 +682,7 @@
           } else if (ta && !ta.value.trim()) toast('内容不能为空');
           return;
         }
-        if (act === 'move') { state.moveId = state.moveId === id ? null : id; state.editId = null; renderList(); return; }
+        if (act === 'move') { state.moveId = state.moveId === id ? null : id; state.editId = null; state.remId = null; renderList(); return; }
         if (act === 'cancelmove') { state.moveId = null; renderList(); return; }
         if (act === 'savemove') {
           var mv = all()[id];
@@ -669,6 +780,45 @@
     render();
   }
 
+  /* ---------- 提醒：到点网页弹窗 ---------- */
+  var remDismissed = {};   /* 本次会话内点过「关闭」的记录；刷新页面后会重新弹出，直到点「完成」 */
+  var remShownId = null;
+  function checkReminders() {
+    if (RO || remShownId) return;
+    var now = Date.now();
+    var due = notes().filter(function (x) {
+      return x.v.remindAt && !x.v.remDone && x.v.remindAt <= now && !remDismissed[x.id];
+    }).sort(function (a, b) { return a.v.remindAt - b.v.remindAt; });
+    if (due.length) showRemModal(due[0]);
+  }
+  function showRemModal(x) {
+    remShownId = x.id;
+    var old = $('remModal'); if (old) old.remove();
+    var el = document.createElement('div');
+    el.id = 'remModal';
+    el.innerHTML = '<div class="remodal-card">'
+      + '<div class="remodal-title">⏰ 随手记提醒</div>'
+      + '<div class="remodal-time">' + fmtT(x.v.remindAt) + '</div>'
+      + '<div class="remodal-text">' + esc((x.v.text || '').slice(0, 500)) + '</div>'
+      + '<div class="edit-btns">'
+      + '<button class="btn dark" data-ract="done">完成</button>'
+      + '<button class="btn" data-ract="snooze">10 分钟后再提醒</button>'
+      + '<button class="btn ghost" data-ract="close">关闭</button>'
+      + '</div></div>';
+    document.body.appendChild(el);
+    el.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-ract]');
+      if (!b) return;
+      var a = b.getAttribute('data-ract');
+      var v = all()[remShownId];
+      if (a === 'done' && v) { setNote(remShownId, Object.assign({}, v, { remDone: 1 })); renderList(); }
+      else if (a === 'snooze' && v) { setNote(remShownId, Object.assign({}, v, { remindAt: Date.now() + 10 * 60000, remDone: 0 })); renderList(); }
+      else if (a === 'close') { remDismissed[remShownId] = 1; }
+      el.remove(); remShownId = null;
+      if (a !== 'close') setTimeout(checkReminders, 300);
+    });
+  }
+
   /* ---------- 启动 ---------- */
   function checkShare() {
     var m = location.hash.match(/[#&]share=([^&]+)/);
@@ -691,5 +841,11 @@
       agoEl: 'syncAgo', retryEl: 'syncRetry'
     });
     render();
+    /* 提醒轮询：20 秒一查；打开页面/切回页面立即查 */
+    setInterval(checkReminders, 20000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') checkReminders();
+    });
+    setTimeout(checkReminders, 1200);
   });
 })();
