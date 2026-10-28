@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>随手记 · 分类笔记与项目记录</title>
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <header class="topbar">
@@ -91,7 +91,8 @@
   <!-- ============ 主区 ============ -->
   <main class="main">
     <div id="roBanner" class="ro-banner" hidden>
-      只读分享视图 · 共 <b id="roCount">0</b> 条，由对方通过分享链接发送。<a href="javascript:location.hash='';location.reload()">退出</a>
+      只读分享视图 · 共 <b id="roCount">0</b> 条，由对方通过分享链接发送。
+      <button class="linkbtn" data-act="exitro">退出</button>
     </div>
 
     <div id="editor">
@@ -122,7 +123,30 @@
 
 <div id="toast"></div>
 
+<!-- ============ 分享弹窗 ============ -->
+<div class="modal-mask" id="shareMask" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <span>🔗 分享只读链接</span>
+      <button class="modal-x" data-act="closeshare" aria-label="关闭">×</button>
+    </div>
+    <div class="share-meta" id="shareMeta"></div>
+    <textarea id="shareUrl" readonly spellcheck="false" rows="4" placeholder="分享链接"></textarea>
+    <div class="share-warn" id="shareWarn" hidden></div>
+    <div class="share-btns">
+      <button class="btn dark" id="shareNative" hidden>系统分享</button>
+      <button class="btn dark" id="shareCopy">复制链接</button>
+      <button class="btn ghost" id="shareOpen">打开预览</button>
+      <button class="btn ghost" data-act="closeshare">关闭</button>
+    </div>
+    <div class="muted share-tip">
+      链接本身包含记录内容，不经任何服务器，对方打开即只读浏览。<br>
+      手机点「系统分享」可直接发微信/短信；若自动复制被浏览器拦截，<b>长按上面的链接框</b>即可手动复制。
+    </div>
+  </div>
+</div>
+
 <script src="gh-sync.js?v=1"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

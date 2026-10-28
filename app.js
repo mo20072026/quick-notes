@@ -470,8 +470,12 @@
 
   /* ---------- 只读分享视图 ---------- */
   function renderRo() {
+    document.body.classList.add('ro-mode');
     $('editor').hidden = true;
-    $('toolbar') && ($('toolbar').hidden = true);
+    var rc = $('roCount'); if (rc) rc.textContent = RO.length;
+    $('roBanner').hidden = false;
+    $('settingsBtn') && ($('settingsBtn').hidden = true);
+    $('menuBtn') && ($('menuBtn').hidden = true);
     var box = $('listBox');
     var pages = Math.max(1, Math.ceil(RO.length / PAGE));
     var page = Math.min(Math.max(1, state.page), pages);
@@ -490,10 +494,6 @@
     }).join('');
     if (pages > 1) html += pagerHtml(RO.length, page, pages);
     box.innerHTML = html;
-    $('roCount').textContent = RO.length;
-    $('roBanner').hidden = false;
-    $('settingsBtn').hidden = true;
-    $('menuBtn').hidden = true;
   }
 
   /* ---------- 操作 ---------- */
@@ -610,37 +610,98 @@
   }
 
   /* ---------- 分享链接 ---------- */
-  function shareNotes(list, label) {
-    if (!list.length) { toast('没有可分享的记录'); return; }
+  /* 生成只读链接：内容整体编码进 ?s= 参数（放 query 而非 hash，兼容更多聊天软件的链接识别） */
+  function buildShareUrl(list) {
     var payload = list.map(function (x) {
+      var v = (x && x.v) ? x.v : (x || {});
       return {
-        text: x.v ? x.v.text : x.text,
-        tags: (x.v ? x.v.tags : x.tags) || [],
-        cat: (x.v ? (x.v.cat ? catPath(x.v.cat).join('/') : '') : (x.cat || '')),
-        proj: (x.v ? (x.v.proj ? catPath(x.v.proj).join('/') : '') : (x.proj || '')),
-        c: x.v ? x.v.c : x.c, u: x.v ? x.v.u : (x.u || 0)
+        text: v.text || '',
+        tags: v.tags || [],
+        cat: v.cat ? catPath(v.cat).join(' / ') : '',
+        proj: v.proj ? catPath(v.proj).join(' / ') : '',
+        c: v.c || Date.now(),
+        u: v.u || 0
       };
     });
+    if (!payload.length) return null;
     var data = b64enc(JSON.stringify({ v: 1, from: '随手记', at: Date.now(), notes: payload }));
-    var url = location.origin + location.pathname + '#share=' + data;
-    if (url.length > 60000) {
-      toast('内容太多，链接可能过长，建议改用导出功能');
-    }
-    copyText(url, '分享链接已复制（' + label + '，' + payload.length + ' 条）——发给对方，打开即只读浏览');
+    return {
+      url: location.origin + location.pathname + '?s=' + data,
+      count: payload.length
+    };
   }
-  function copyText(text, okMsg) {
+  /* 打开分享弹窗：链接一定可见、可长按手动复制，手机端还给出「系统分享」 */
+  function shareNotes(list, label) {
+    list = (list || []).filter(Boolean);
+    if (!list.length) { toast('没有可分享的记录'); return; }
+    var built = buildShareUrl(list);
+    if (!built) { toast('没有可分享的记录'); return; }
+    var ta = $('shareUrl'); if (!ta) { copyText(built.url, function (ok) { toast(ok ? '分享链接已复制' : '复制失败'); }); return; }
+    ta.value = built.url;
+    $('shareMeta').textContent = (label || '分享') + ' · ' + built.count + ' 条 · 链接 ' + built.url.length + ' 字符';
+    var warn = $('shareWarn');
+    if (warn) {
+      if (built.url.length > 6000) {
+        warn.hidden = false;
+        warn.textContent = '链接较长，部分聊天软件会截断。若对方打不开，请减少分享条数，或改用「导出」发文件。';
+      } else warn.hidden = true;
+    }
+    var nat = $('shareNative');
+    if (nat) nat.hidden = !(navigator.share && navigator.share);
+    $('shareMask').hidden = false;
+    document.body.classList.add('modal-open');
+    /* 老浏览器/被拦截时不影响：链接就在框里，可长按复制 */
+    copyText(built.url, function (ok) {
+      if (ok) toast('链接已复制'); else toast('请长按下面的链接手动复制');
+    });
+  }
+  function closeShare() {
+    var m = $('shareMask'); if (m) m.hidden = true;
+    document.body.classList.remove('modal-open');
+  }
+  /* 退出只读分享：清掉 ?s= / #share= 参数后回到自己的记录 */
+  function exitRo() {
+    try { location.replace(location.origin + location.pathname); }
+    catch (e) { location.href = location.origin + location.pathname; }
+  }
+  function copyShareUrl() {
+    var ta = $('shareUrl'); if (!ta) return;
+    copyText(ta.value, function (ok) {
+      if (ok) { toast('链接已复制'); return; }
+      try { ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); } catch (e) {}
+      toast('已选中链接，请长按复制');
+    });
+  }
+  /* 复制：clipboard → execCommand → 回调（失败时由调用方引导手动复制） */
+  function copyText(text, cb) {
+    var finished = false;
+    function fin(ok) {
+      if (finished) return; finished = true;
+      if (typeof cb === 'function') cb(ok);
+      else if (typeof cb === 'string') toast(ok ? cb : '复制失败，请手动选择链接');
+      else toast(ok ? '已复制' : '复制失败');
+    }
     function fb() {
+      var ok = false;
       try {
         var ta = document.createElement('textarea');
-        ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-        document.body.appendChild(ta); ta.select();
-        var ok = document.execCommand('copy'); ta.remove(); return ok;
-      } catch (e) { return false; }
+        ta.value = text; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.left = '0'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        try { ta.setSelectionRange(0, text.length); } catch (e) {}
+        ok = document.execCommand('copy');
+        ta.remove();
+      } catch (e) { ok = false; }
+      fin(ok);
     }
-    var done = function (ok) { toast(ok ? okMsg : '复制失败，请手动选择链接'); };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(fb()); });
-    } else done(fb());
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext !== false) {
+        navigator.clipboard.writeText(text).then(function () { fin(true); }, fb);
+        return;
+      }
+    } catch (e) {}
+    fb();
   }
 
   /* ---------- 事件 ---------- */
@@ -746,6 +807,8 @@
           var sv = all()[id];
           shareNotes([sv], '单条'); return;
         }
+        if (act === 'closeshare') { closeShare(); return; }
+        if (act === 'exitro') { exitRo(); return; }
         if (act === 'goto') { gotoNote(id); return; }
       }
       var pg = e.target.closest('[data-pg]');
@@ -788,6 +851,31 @@
     $('expMdBtn').addEventListener('click', exportMd);
     $('expJsonBtn').addEventListener('click', exportJson);
     $('shareBtn').addEventListener('click', function () { shareNotes(currentNotes(), '当前筛选结果'); });
+    /* 分享弹窗 */
+    var sc = $('shareCopy');
+    if (sc) sc.addEventListener('click', copyShareUrl);
+    var sn = $('shareNative');
+    if (sn) sn.addEventListener('click', function () {
+      var ta = $('shareUrl'); if (!ta) return;
+      var url = ta.value;
+      try {
+        navigator.share({ title: '随手记 · 只读分享', text: '随手记只读分享', url: url }).then(function () {
+          toast('已调起系统分享');
+        }, function (err) {
+          if (err && err.name === 'AbortError') return;
+          copyShareUrl();
+        });
+      } catch (e) { copyShareUrl(); }
+    });
+    var so = $('shareOpen');
+    if (so) so.addEventListener('click', function () {
+      var ta = $('shareUrl'); if (!ta) return;
+      var w = window.open(ta.value, '_blank');
+      if (!w) { toast('浏览器拦截了新窗口，请复制链接后手动打开'); }
+    });
+    var sm = $('shareMask');
+    if (sm) sm.addEventListener('click', function (e) { if (e.target === sm) closeShare(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeShare(); });
 
     $('menuBtn').addEventListener('click', function () {
       $('sidebar').classList.add('open'); $('mask').classList.add('show');
@@ -865,15 +953,51 @@
   }
 
   /* ---------- 启动 ---------- */
+  /* 取出分享参数：新格式 ?s=…，兼容旧的 #share=… */
+  function shareParam() {
+    var s = '';
+    var q = String(location.search || '').replace(/^\?/, '');
+    if (q) {
+      q.split('&').forEach(function (kv) {
+        var i = kv.indexOf('=');
+        if (i < 0) return;
+        var k = kv.slice(0, i);
+        if (k === 's' || k === 'share') s = kv.slice(i + 1);
+      });
+    }
+    if (!s) {
+      var m = String(location.hash || '').match(/[#&](?:share|s)=([^&]+)/);
+      if (m) s = m[1];
+    }
+    return s;
+  }
   function checkShare() {
-    var m = location.hash.match(/[#&]share=([^&]+)/);
-    if (!m) return false;
+    var raw = shareParam();
+    if (!raw) return false;
+    var data = raw;
+    try { data = decodeURIComponent(raw); } catch (e) { data = raw; }
     try {
-      var o = JSON.parse(b64dec(decodeURIComponent(m[1])));
-      if (o && o.v === 1 && Array.isArray(o.notes)) { RO = o.notes; return true; }
-    } catch (e) { /* 忽略坏链接 */ }
-    toast('分享链接无法识别');
-    return false;
+      var o = JSON.parse(b64dec(data));
+      if (o && o.v === 1 && Array.isArray(o.notes) && o.notes.length) { RO = o.notes; return true; }
+      throw new Error('内容格式不符');
+    } catch (e) {
+      shareError(raw, e);
+      return false;
+    }
+  }
+  /* 分享链接解析失败：给明确原因，而不是闪一下就没的提示 */
+  function shareError(raw, err) {
+    var bn = $('roBanner');
+    if (!bn) { toast('分享链接无法识别'); return; }
+    bn.hidden = false;
+    bn.className = 'ro-banner ro-bad';
+    bn.innerHTML = '<b>分享链接打不开</b>：内容不完整或已被聊天软件截断（收到 ' + raw.length + ' 字符）。<br>'
+      + '请让对方重新分享；建议对方在分享窗口点「系统分享」或「复制链接」后再发。'
+      + '<br><button class="linkbtn" data-act="exitro">返回我的记录</button>'
+      + '<span class="muted" style="font-size:11.5px"> （' + esc(String(err && err.message || err).slice(0, 60)) + '）</span>';
+    var ed = $('editor'); if (ed) ed.hidden = true;
+    var hide = ['menuBtn', 'settingsBtn'];
+    hide.forEach(function (k) { var el = $(k); if (el) el.hidden = true; });
   }
   document.addEventListener('DOMContentLoaded', function () {
     bind();
