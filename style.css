@@ -99,6 +99,12 @@ a { color: #0969da; }
 .rel-item .rtxt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rel-why { font-size: 11px; color: #8b949e; flex-shrink: 0; }
 
+/* 归属调整面板 */
+.mv-box { margin-top: 8px; border-top: 1px dashed #e4e7eb; padding-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mv-item { font-size: 12.5px; color: #57606a; display: flex; align-items: center; gap: 5px; }
+.mv-item select { border: 1px solid #d0d7de; border-radius: 7px; padding: 5px 8px; font: inherit; max-width: 200px; background: #fff; }
+.btn.sm { padding: 4px 10px; font-size: 12.5px; }
+
 /* 编辑态 */
 .edit-area textarea { width: 100%; border: 1px solid #0969da; border-radius: 8px; padding: 8px 10px; font: inherit; min-height: 72px; }
 .edit-btns { display: flex; gap: 8px; margin-top: 6px; }

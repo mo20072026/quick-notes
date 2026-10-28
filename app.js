@@ -13,6 +13,7 @@
     search: '',
     page: 1,
     editId: null,                 // 正在编辑的记录 id
+    moveId: null,                 // 正在调整归属（分类/项目）的记录 id
     openRel: null                 // 展开关联的记录 id
   };
   var RO = null;                  // 只读分享视图数据（数组）
@@ -232,8 +233,18 @@
       foot = '<button class="linkbtn" data-act="restore" data-id="' + esc(id) + '">恢复</button>';
     } else {
       foot = '<button class="linkbtn" data-act="edit" data-id="' + esc(id) + '">编辑</button>'
+        + '<button class="linkbtn" data-act="move" data-id="' + esc(id) + '">归属</button>'
         + '<button class="linkbtn" data-act="delnote" data-id="' + esc(id) + '">删除</button>'
         + '<button class="linkbtn" data-act="shareone" data-id="' + esc(id) + '">分享此条</button>';
+    }
+    var moveHtml = '';
+    if (state.moveId === id) {
+      moveHtml = '<div class="mv-box">'
+        + '<label class="mv-item">分类 <select id="mvCat"><option value="">（不归分类）</option>' + treeOptions('cat', v.cat) + '</select></label>'
+        + '<label class="mv-item">项目 <select id="mvProj"><option value="">（不归项目）</option>' + treeOptions('proj', v.proj) + '</select></label>'
+        + '<button class="btn dark sm" data-act="savemove" data-id="' + esc(id) + '">保存归属</button>'
+        + '<button class="btn ghost sm" data-act="cancelmove">取消</button>'
+        + '</div>';
     }
     return '<div class="note-card" id="nc-' + esc(id) + '">'
       + '<div class="note-head"><span>🕐 ' + timeStr + '</span>'
@@ -243,7 +254,19 @@
       + (tags ? '<div style="margin-top:6px">' + tags + '</div>' : '')
       + '<div class="note-foot">' + foot
       + (state.view.type !== 'trash' ? '<button class="linkbtn" data-act="rel" data-id="' + esc(id) + '">关联 ' + rel.length + ' 条 ▾</button>' : '')
-      + '</div>' + relHtml + '</div>';
+      + '</div>' + moveHtml + relHtml + '</div>';
+  }
+  /* 下拉选项：整棵树按层级缩进 */
+  function treeOptions(kind, selected) {
+    var out = [];
+    (function walk(pid, depth) {
+      children(pid, kind).forEach(function (x) {
+        var pad = depth > 0 ? new Array(depth + 1).join('　') : '';
+        out.push('<option value="' + esc(x.id) + '"' + (x.id === selected ? ' selected' : '') + '>' + pad + esc(x.v.name) + '</option>');
+        walk(x.id, depth + 1);
+      });
+    })(null, 0);
+    return out.join('');
   }
   function pagerHtml(total, page, pages) {
     function btn(p, label, cur, dis) {
@@ -493,7 +516,7 @@
           var vw = t.getAttribute('data-view');
           if (vw === 'all' || vw === 'trash') state.view = { type: vw };
           else { var p = vw.split(':'); state.view = { type: p[0], id: p[1] }; }
-          state.page = 1; state.openRel = null; state.editId = null;
+          state.page = 1; state.openRel = null; state.editId = null; state.moveId = null;
           closeSidebar(); render();
           return;
         }
@@ -517,7 +540,7 @@
         if (act === 'rel') {
           state.openRel = state.openRel === id ? null : id; renderList(); return;
         }
-        if (act === 'edit') { state.editId = id; renderList(); return; }
+        if (act === 'edit') { state.editId = id; state.moveId = null; renderList(); return; }
         if (act === 'canceledit') { state.editId = null; renderList(); return; }
         if (act === 'saveedit') {
           var v = all()[id]; var ta = $('editText');
@@ -525,6 +548,22 @@
             setNote(id, Object.assign({}, v, { text: ta.value.trim(), u: Date.now() }));
             state.editId = null; renderList(); toast('已修改');
           } else if (ta && !ta.value.trim()) toast('内容不能为空');
+          return;
+        }
+        if (act === 'move') { state.moveId = state.moveId === id ? null : id; state.editId = null; renderList(); return; }
+        if (act === 'cancelmove') { state.moveId = null; renderList(); return; }
+        if (act === 'savemove') {
+          var mv = all()[id];
+          if (!mv) return;
+          var cv = ($('mvCat') || {}).value || '';
+          var pv = ($('mvProj') || {}).value || '';
+          var nu = Object.assign({}, mv, { u: Date.now() });
+          if (cv) nu.cat = cv; else delete nu.cat;
+          if (pv) nu.proj = pv; else delete nu.proj;
+          setNote(id, nu);
+          state.moveId = null;
+          render();
+          toast('归属已调整，关联关系将自动重算');
           return;
         }
         if (act === 'delnote') {
