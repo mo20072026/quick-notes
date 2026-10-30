@@ -133,22 +133,22 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     console.log('     导出样本已存：' + path.join(require('os').tmpdir(), 'quick-notes-export.xlsx'));
   }
 
-  /* 10. 悬浮窗按钮：无画中画 API 的环境（手机/jsdom）自动隐藏 */
+  /* 10. 悬浮窗按钮：改为拉起桌面悬浮球（qnball:// 协议），手机/触屏不显示 */
   const pipBtn = rx.w.document.getElementById('pipBtn');
   A('有「悬浮窗」按钮', !!pipBtn);
-  A('不支持画中画时按钮自动隐藏（手机端不显示）', !!pipBtn && pipBtn.hidden === true);
-  if (pipBtn) click(rx.w, pipBtn);   /* 不应崩溃，只 toast 提示 */
-  A('不支持时点击仅提示不报错', true);
+  A('按钮不再打开画中画（画中画能力保留但入口移除）', /function ballLaunch/.test(appJs) && /pipOpen/.test(appJs) && !/addEventListener\('click', pipOpen\)/.test(appJs));
+  A('点击通过 qnball:// 协议拉起桌面悬浮球', /qnball:\/\/open/.test(appJs));
+  A('协议未注册时给出安装指引 toast', /注册悬浮球协议\.reg/.test(appJs));
+  if (pipBtn) click(rx.w, pipBtn);   /* 不应崩溃 */
+  A('点击不报错', true);
   /* 10.1 悬浮窗按钮在右上角（顶栏、设置按钮之前）且用醒目配色区分 */
   const tb = rx.w.document.querySelector('.topbar');
   A('悬浮窗按钮位于右上角顶栏内', !!pipBtn && tb.contains(pipBtn), pipBtn && pipBtn.parentElement.className);
   A('悬浮窗按钮在「设置」按钮之前（更靠右）', !!pipBtn && pipBtn.compareDocumentPosition(rx.w.document.getElementById('settingsBtn')) & rx.w.document.DOCUMENT_POSITION_FOLLOWING);
   A('悬浮窗按钮使用 pip-accent 醒目配色', !!pipBtn && pipBtn.classList.contains('pip-accent'));
-  /* 10.2 悬浮窗小球/面板双模式代码完整 */
-  A('小球模式（pipBuildBall）已实现', /pipBuildBall/.test(appJs) && /pip-ball/.test(appJs));
-  A('面板每页 5 条 + 上下页翻页', /pipPageN = 5/.test(appJs) && /data-pip="prev"/.test(appJs) && /data-pip="next"/.test(appJs));
+  /* 10.2 画中画悬浮窗代码保留（skill 能力存档） */
+  A('画中画面板/小球代码仍保留', /pipBuildBall/.test(appJs) && /pipOpen/.test(appJs) && /pipPageN = 5/.test(appJs));
   A('面板带分类/项目筛选（含子级）', /pipCat/.test(appJs) && /pipProj/.test(appJs) && /inCat\(x\.v\.cat, pipSt\.cat\)/.test(appJs));
-  A('滚轮翻页与「放大回网页」均已实现', /addEventListener\('wheel'/.test(appJs) && /pipGoHome/.test(appJs));
   /* 11. 图片/截图快记 */
   A('📷 选图 + 粘贴截图 + 待添加缩略图均已接入', /imgBtn/.test(html) && /imgPick/.test(html) && /pendImgs/.test(html) && /addImgFile/.test(appJs));
   A('canvas 压缩与二次压缩均已实现', /compressImg/.test(appJs) && /220000/.test(appJs));
@@ -165,12 +165,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   A('标签输入框提示已更新（不承诺自动提取）', /标签（空格分隔，可不填）/.test(html));
   A('悬浮窗已移除快捷输入（只做展示）', !/pipText/.test(appJs) && !/pip-add/.test(appJs));
   A('画中画小球铺满窗口（蓝底无白边）', /\{ w: 48, h: 48 \}/.test(appJs) && /min\(100vw,100vh\)/.test(appJs) && !/width:40px;height:40px/.test(appJs));
-  /* 14. 页面内悬浮球（真 DOM 小球，42px，不受画中画窗口最小限制） */
-  A('顶栏有「小球」开关按钮', /id="fbBtn"/.test(html));
-  A('页面内球为 42px 可拖动小球', /#fbBall \{/.test(css) && /width: 42px; height: 42px/.test(css) && /pointerdown/.test(appJs) && /setPointerCapture/.test(appJs));
-  A('点击球弹出迷你面板（每页5条+滚轮翻页+点条目定位）', /fbOpenPanel/.test(appJs) && /fb-panel|fbPanel/.test(appJs) && /data-fbid/.test(appJs) && /gotoNote\(it\.getAttribute\('data-fbid'\)\)/.test(appJs));
-  A('球位置与开关偏好均持久化', /qn_fb_pos/.test(appJs) && /qn_fb/.test(appJs));
-  A('只读分享页与手机端不出球', /fbRemove\(\); renderRo/.test(appJs) && /pointer: coarse/.test(appJs));
+  /* 14. 页面内小球已移除：桌面悬浮球由原生程序承担 */
+  A('顶栏「小球」按钮已删除', !/id="fbBtn"/.test(html));
+  A('页面内小球 DOM/样式/代码已全部删除', !/fbBall/.test(css) && !/fbBuild|fbRender|fbOpenPanel/.test(appJs));
+  A('画中画入口改桌面悬浮球后手机端不显示按钮', /pointer: coarse/.test(appJs));
 
   console.log(fails ? '\n共 ' + fails + ' 项失败' : '\n全部通过');
   process.exit(fails ? 1 : 0);

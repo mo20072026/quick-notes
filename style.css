@@ -121,41 +121,6 @@ a { color: #0969da; }
 }
 .todobadge.done { background: #dafbe1; color: #1a7f37; border-color: #aceebb; font-weight: 600; }
 
-/* 页面内悬浮球（42px 可拖动小球，尺寸不受画中画窗口最小限制） */
-#fbBall {
-  position: fixed; right: 16px; bottom: 120px; z-index: 150;
-  width: 42px; height: 42px; border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  box-shadow: 0 3px 10px rgba(29, 78, 216, .45);
-  display: flex; align-items: center; justify-content: center;
-  cursor: grab; user-select: none; touch-action: none;
-}
-#fbBall:active { cursor: grabbing; }
-#fbBall .fb-em { font-size: 19px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .2)); }
-#fbBall .fb-n {
-  position: absolute; top: -4px; right: -6px; background: #ef4444; color: #fff;
-  border-radius: 9px; font-size: 9.5px; padding: 0 4px; font-weight: 700; line-height: 14px;
-}
-/* 迷你面板（点球弹出，贴球放置） */
-#fbPanel {
-  position: fixed; z-index: 151; width: 250px;
-  background: #fff; border: 1px solid #e4e7eb; border-radius: 12px;
-  box-shadow: 0 8px 28px rgba(20, 30, 50, .18); overflow: hidden; font-size: 12.5px;
-}
-.fb-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px; font-weight: 600; border-bottom: 1px solid #eef1f4; }
-.fb-head .fb-c { background: #eef3fe; color: #1d4ed8; border-radius: 10px; padding: 0 8px; font-size: 11px; }
-.fb-head .fb-x { margin-left: auto; border: 0; background: none; cursor: pointer; color: #8b949e; font-size: 13px; padding: 0 2px; }
-.fb-item { padding: 7px 10px; border-bottom: 1px solid #f2f4f7; cursor: pointer; }
-.fb-item:hover { background: #fafbff; }
-.fb-item .fb-t { word-break: break-word; line-height: 1.45; }
-.fb-item .fb-path { font-size: 10.5px; color: #8b949e; margin-top: 2px; }
-.fb-empty { padding: 18px 0; text-align: center; color: #8b949e; }
-.fb-pager { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 6px; color: #57606a; font-size: 11.5px; }
-.fb-pager button { border: 1px solid #d0d7de; background: #fff; border-radius: 7px; padding: 1px 9px; cursor: pointer; font-size: 12px; color: #1f2328; }
-.fb-pager button:disabled { opacity: .4; cursor: default; }
-/* 小球开关按钮的选中态 */
-.btn.on { background: #eef3fe; color: #1d4ed8; border-color: #bcd3f8; }
-
 /* 提醒弹窗 */
 #remModal {
   position: fixed; inset: 0; z-index: 200; background: rgba(20, 30, 50, .45);
