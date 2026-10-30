@@ -17,6 +17,7 @@ const { JSDOM } = loadJsdom();
 const dir = path.join(__dirname, '..') + path.sep;
 const html = fs.readFileSync(dir + 'index.html', 'utf8');
 const appJs = fs.readFileSync(dir + 'app.js', 'utf8');
+const css = fs.readFileSync(dir + 'style.css', 'utf8');
 const xlsxJs = fs.readFileSync(dir + 'export-xlsx.js', 'utf8');
 let fails = 0;
 function A(name, cond, extra) {
@@ -141,7 +142,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   /* 10.1 悬浮窗按钮在右上角（顶栏、设置按钮之前）且用醒目配色区分 */
   const tb = rx.w.document.querySelector('.topbar');
   A('悬浮窗按钮位于右上角顶栏内', !!pipBtn && tb.contains(pipBtn), pipBtn && pipBtn.parentElement.className);
-  A('悬浮窗按钮在「设置」按钮之前（更靠右）', !!pipBtn && pipBtn.nextElementSibling && pipBtn.nextElementSibling.id === 'settingsBtn');
+  A('悬浮窗按钮在「设置」按钮之前（更靠右）', !!pipBtn && pipBtn.compareDocumentPosition(rx.w.document.getElementById('settingsBtn')) & rx.w.document.DOCUMENT_POSITION_FOLLOWING);
   A('悬浮窗按钮使用 pip-accent 醒目配色', !!pipBtn && pipBtn.classList.contains('pip-accent'));
   /* 10.2 悬浮窗小球/面板双模式代码完整 */
   A('小球模式（pipBuildBall）已实现', /pipBuildBall/.test(appJs) && /pip-ball/.test(appJs));
@@ -163,7 +164,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   A('已移除自动关键词提取（不填标签就没有标签）', !/autoKeywords/.test(appJs));
   A('标签输入框提示已更新（不承诺自动提取）', /标签（空格分隔，可不填）/.test(html));
   A('悬浮窗已移除快捷输入（只做展示）', !/pipText/.test(appJs) && !/pip-add/.test(appJs));
-  A('小球已缩小（48px 窗口 / 40px 球）', /\{ w: 48, h: 48 \}/.test(appJs) && /width:40px;height:40px/.test(appJs));
+  A('画中画小球铺满窗口（蓝底无白边）', /\{ w: 48, h: 48 \}/.test(appJs) && /min\(100vw,100vh\)/.test(appJs) && !/width:40px;height:40px/.test(appJs));
+  /* 14. 页面内悬浮球（真 DOM 小球，42px，不受画中画窗口最小限制） */
+  A('顶栏有「小球」开关按钮', /id="fbBtn"/.test(html));
+  A('页面内球为 42px 可拖动小球', /#fbBall \{/.test(css) && /width: 42px; height: 42px/.test(css) && /pointerdown/.test(appJs) && /setPointerCapture/.test(appJs));
+  A('点击球弹出迷你面板（每页5条+滚轮翻页+点条目定位）', /fbOpenPanel/.test(appJs) && /fb-panel|fbPanel/.test(appJs) && /data-fbid/.test(appJs) && /gotoNote\(it\.getAttribute\('data-fbid'\)\)/.test(appJs));
+  A('球位置与开关偏好均持久化', /qn_fb_pos/.test(appJs) && /qn_fb/.test(appJs));
+  A('只读分享页与手机端不出球', /fbRemove\(\); renderRo/.test(appJs) && /pointer: coarse/.test(appJs));
 
   console.log(fails ? '\n共 ' + fails + ' 项失败' : '\n全部通过');
   process.exit(fails ? 1 : 0);

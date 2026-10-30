@@ -411,6 +411,7 @@
     $('editor').style.display = state.view.type === 'trash' ? 'none' : '';
     populatePicker();
     pipRender();   /* 悬浮窗开着时同步刷新 */
+    fbRender();    /* 页面内悬浮球/迷你面板联动刷新 */
   }
 
   /* 输入区的分类/项目选择器：默认跟随当前视图 */
@@ -941,6 +942,18 @@
       pb.hidden = !pipSupported();
       pb.addEventListener('click', pipOpen);
     }
+    /* 页面内悬浮球：开关（默认显示，偏好记住） */
+    var fb = $('fbBtn');
+    if (fb) {
+      fb.classList.toggle('on', fbOn());
+      fb.addEventListener('click', function () {
+        var on = !fbOn();
+        fbSet(on);
+        fb.classList.toggle('on', on);
+        toast(on ? '页面内悬浮球已显示（可拖动）' : '悬浮球已隐藏');
+      });
+    }
+    fbBuild();
     $('noteText').addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') addNote();
     });
@@ -1177,10 +1190,9 @@
         + '.pip-pager button:disabled{opacity:.4;cursor:default}'
         + '.pip-pginfo{font-size:12px;color:#57606a;white-space:nowrap}'
         + '.pip-pager .pip-foot{margin-left:auto;font-size:10.5px;color:#8b949e}'
-        + '.pip-ball{width:100%;height:100vh;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent}'
-        + '.pip-ball .b{position:relative;width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#1d4ed8);box-shadow:0 3px 10px rgba(29,78,216,.45);display:flex;align-items:center;justify-content:center;font-size:17px;user-select:none;transition:transform .15s}'
-        + '.pip-ball .b:hover{transform:scale(1.1)}'
-        + '.pip-ball .bn{position:absolute;top:-4px;right:-6px;background:#ef4444;color:#fff;border-radius:9px;font-size:9px;padding:0 4px;font-weight:700;line-height:14px}'
+        + '.pip-ball{width:100%;height:100vh;display:flex;align-items:center;justify-content:center;cursor:pointer;background:linear-gradient(135deg,#3b82f6,#1d4ed8);position:relative;overflow:hidden;user-select:none}'
+        + '.pip-ball .em{font-size:calc(min(100vw,100vh)*.44);line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}'
+        + '.pip-ball .bn{position:absolute;top:2px;right:3px;background:#ef4444;color:#fff;border-radius:9px;font-size:calc(min(100vw,100vh)*.24);min-width:1.3em;text-align:center;padding:0 .3em;font-weight:700;line-height:1.5}'
         + '.pip-toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:#1f2328;color:#fff;border-radius:8px;padding:5px 14px;font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;white-space:nowrap}'
         + '.pip-toast.on{opacity:.92}';
       w.document.head.appendChild(st);
@@ -1225,12 +1237,17 @@
     if (pipSt.mode === 'ball') pipBuildBall(w); else pipBuildPanel(w);
   }
   function pipBuildBall(w) {
-    w.document.body.innerHTML = '<div class="pip-ball" id="pipBall" title="点击展开随手记">'
-      + '<div class="b">📋<span class="bn" id="pipBallN"></span></div></div>';
+    /* 画中画窗口有浏览器强制的最小尺寸（约 190px 宽），脚本无法再缩小；
+       让球填满整个窗口：蓝底铺满、无白边，视觉上就是一颗紧凑的完整小球 */
+    w.document.body.innerHTML = '<div class="pip-ball" id="pipBall" title="点击展开随手记"><span class="em">📋</span><span class="bn" id="pipBallN"></span></div>';
+    w.document.body.style.cssText = 'margin:0;overflow:hidden';
+    w.document.documentElement.style.background = '#3b82f6';
     w.document.getElementById('pipBall').addEventListener('click', function () { pipSetMode('panel'); });
     pipRender();
   }
   function pipBuildPanel(w) {
+    w.document.body.style.cssText = 'margin:0';          /* 从球模式切回：还原 body */
+    w.document.documentElement.style.background = '';
     w.document.body.innerHTML = '<div class="pip-wrap">'
       + '<div class="pip-head">📋 随手记<span class="pip-n" id="pipN"></span>'
       + '<span class="pip-hb">'
@@ -1283,7 +1300,7 @@
     var w = pipWin;
     if (pipSt.mode === 'ball') {
       var bn = w.document.getElementById('pipBallN');
-      if (bn) bn.textContent = notes().length || '';
+      if (bn) { var n0 = notes().length; bn.textContent = n0 || ''; bn.style.display = n0 ? '' : 'none'; }
       return;
     }
     var list = w.document.getElementById('pipList');
@@ -1322,9 +1339,114 @@
     if (nx) nx.disabled = pipSt.page >= pages;
   }
 
+  /* ---------- 页面内悬浮球：真 DOM 小球（42px，可拖动），尺寸不受画中画窗口最小限制 ---------- */
+  var fbEl = null, fbPanel = null, fbPage = 1, fbDrag = null;
+  function fbOn() { try { return localStorage.getItem('qn_fb') !== 'off'; } catch (e) { return true; } }
+  function fbSet(on) { try { localStorage.setItem('qn_fb', on ? 'on' : 'off'); } catch (e) { } if (on) fbBuild(); else fbRemove(); }
+  function fbBuild() {
+    if (fbEl || !fbOn()) return;
+    if (document.body.classList.contains('ro-mode')) return;                       /* 只读分享页不出球 */
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return; /* 手机/触屏不出球 */
+    fbEl = document.createElement('div');
+    fbEl.id = 'fbBall'; fbEl.title = '随手记悬浮球：点击展开，拖动换位置';
+    fbEl.innerHTML = '<span class="fb-em">📋</span><span class="fb-n" id="fbN"></span>';
+    var pos = null;
+    try { pos = JSON.parse(localStorage.getItem('qn_fb_pos') || 'null'); } catch (e) { }
+    if (pos && pos.x >= 0 && pos.y >= 0) {
+      fbEl.style.right = 'auto'; fbEl.style.bottom = 'auto';
+      fbEl.style.left = Math.min(pos.x, window.innerWidth - 46) + 'px';
+      fbEl.style.top = Math.min(pos.y, window.innerHeight - 46) + 'px';
+    }
+    document.body.appendChild(fbEl);
+    fbEl.addEventListener('pointerdown', function (e) {
+      fbDrag = { sx: e.clientX, sy: e.clientY, ox: fbEl.offsetLeft, oy: fbEl.offsetTop, moved: false };
+      try { fbEl.setPointerCapture(e.pointerId); } catch (err) { }
+    });
+    fbEl.addEventListener('pointermove', function (e) {
+      if (!fbDrag) return;
+      var dx = e.clientX - fbDrag.sx, dy = e.clientY - fbDrag.sy;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) fbDrag.moved = true;
+      if (fbDrag.moved) {
+        fbEl.style.right = 'auto'; fbEl.style.bottom = 'auto';
+        fbEl.style.left = Math.min(Math.max(2, fbDrag.ox + dx), window.innerWidth - 46) + 'px';
+        fbEl.style.top = Math.min(Math.max(2, fbDrag.oy + dy), window.innerHeight - 46) + 'px';
+        fbPlace();
+      }
+    });
+    fbEl.addEventListener('pointerup', function (e) {
+      var wasClick = fbDrag && !fbDrag.moved;
+      try { fbEl.releasePointerCapture(e.pointerId); } catch (err) { }
+      fbDrag = null;
+      if (!wasClick) {   /* 拖动结束：记住位置 */
+        try { localStorage.setItem('qn_fb_pos', JSON.stringify({ x: fbEl.offsetLeft, y: fbEl.offsetTop })); } catch (err) { }
+        return;
+      }
+      if (fbPanel) fbClosePanel(); else fbOpenPanel();
+    });
+    fbRender();
+  }
+  function fbRemove() { if (fbEl) { fbEl.remove(); fbEl = null; } fbClosePanel(); }
+  function fbPlace() {  /* 面板始终贴着球 */
+    if (!fbPanel || !fbEl) return;
+    var pw = fbPanel.offsetWidth, ph = fbPanel.offsetHeight;
+    var x = Math.min(Math.max(6, fbEl.offsetLeft + 21 - pw / 2), window.innerWidth - pw - 6);
+    var y = fbEl.offsetTop - ph - 10; if (y < 6) y = fbEl.offsetTop + 50;
+    fbPanel.style.left = x + 'px'; fbPanel.style.top = y + 'px';
+  }
+  function fbOpenPanel() {
+    if (!fbEl) return;
+    fbPanel = document.createElement('div');
+    fbPanel.id = 'fbPanel';
+    document.body.appendChild(fbPanel);
+    fbPage = 1;
+    fbPanel.addEventListener('wheel', function (e) {   /* 滚轮翻页 */
+      var pages = Math.max(1, Math.ceil(fbNotes().length / 5));
+      if (e.deltaY > 0 && fbPage < pages) { fbPage++; fbRender(); fbPlace(); }
+      else if (e.deltaY < 0 && fbPage > 1) { fbPage--; fbRender(); fbPlace(); }
+    }, { passive: true });
+    fbRender(); fbPlace();
+  }
+  function fbClosePanel() { if (fbPanel) { fbPanel.remove(); fbPanel = null; } }
+  function fbNotes() {
+    return notes().slice().sort(function (a, b) { return (b.v.c || 0) - (a.v.c || 0); });
+  }
+  function fbRender() {
+    if (fbEl) {
+      var ne = document.getElementById('fbN');
+      if (ne) { var n1 = notes().length; ne.textContent = n1 > 99 ? '99+' : (n1 || ''); ne.style.display = n1 ? '' : 'none'; }
+    }
+    if (!fbPanel) return;
+    var ns = fbNotes();
+    var pages = Math.max(1, Math.ceil(ns.length / 5));
+    if (fbPage > pages) fbPage = pages; if (fbPage < 1) fbPage = 1;
+    var slice = ns.slice((fbPage - 1) * 5, fbPage * 5);
+    fbPanel.innerHTML = '<div class="fb-head">📋 随手记<span class="fb-c">' + ns.length + ' 条</span>'
+      + '<button class="fb-x" id="fbClose" title="收起面板">✕</button></div>'
+      + (slice.map(function (x) {
+          var v = x.v;
+          var flag = v.todo === 'todo' ? '🔖 ' : (v.todo === 'done' ? '✅ ' : '');
+          var bits = [];
+          if (v.cat) bits.push('📂 ' + esc(catPath(v.cat).join('/')));
+          if (v.proj) bits.push('📌 ' + esc(catPath(v.proj).join('/')));
+          var txt = v.text || '';
+          return '<div class="fb-item" data-fbid="' + esc(x.id) + '"><div class="fb-t">' + flag
+            + ((v.imgs || []).length ? '🖼 ' : '') + esc(txt.slice(0, 60)) + (txt.length > 60 ? '…' : '') + '</div>'
+            + (bits.length ? '<div class="fb-path">' + bits.join(' ｜ ') + '</div>' : '') + '</div>';
+        }).join('') || '<div class="fb-empty">暂无记录</div>')
+      + '<div class="fb-pager"><button id="fbPrev"' + (fbPage <= 1 ? ' disabled' : '') + '>‹</button>'
+      + '<span>' + (ns.length ? fbPage : 0) + ' / ' + pages + '</span>'
+      + '<button id="fbNext"' + (fbPage >= pages ? ' disabled' : '') + '>›</button></div>';
+    document.getElementById('fbClose').onclick = fbClosePanel;
+    document.getElementById('fbPrev').onclick = function () { fbPage--; fbRender(); fbPlace(); };
+    document.getElementById('fbNext').onclick = function () { fbPage++; fbRender(); fbPlace(); };
+    Array.prototype.forEach.call(fbPanel.querySelectorAll('[data-fbid]'), function (it) {
+      it.addEventListener('click', function () { gotoNote(it.getAttribute('data-fbid')); fbClosePanel(); });
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     bind();
-    if (checkShare()) { renderRo(); return; }
+    if (checkShare()) { fbRemove(); renderRo(); return; }   /* 只读分享页不出球 */
     GhSync.init({
       storeKey: 'quick_notes',
       file: 'quick-notes.json',
