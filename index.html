@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>随手记 · 分类笔记与项目记录</title>
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <header class="topbar">
@@ -16,6 +16,7 @@
     <button class="btn ghost sm" data-gh="push" hidden id="syncRetry">重试</button>
   </span>
   <div class="spacer"></div>
+  <button class="btn pip-accent sm" id="pipBtn" title="桌面悬浮窗：置顶显示记录，可缩成小球，可快捷记录" hidden>◫ 悬浮窗</button>
   <button class="btn ghost sm" id="settingsBtn" title="设置与同步">设置</button>
 </header>
 
@@ -110,7 +111,6 @@
     </div>
 
     <div class="toolbar">
-      <button class="btn ghost sm" id="pipBtn" title="弹出桌面悬浮窗（置顶显示最近记录，可快捷记录）" hidden>◫ 悬浮窗</button>
       <input id="searchBox" type="search" placeholder="🔍 检索内容 / 标签 / 分类 / 项目…">
       <button class="btn ghost sm" id="expXlsBtn" title="导出为 Excel 表格（.xlsx）">导出 Excel</button>
       <button class="btn ghost sm" id="expJsonBtn">导出 JSON</button>
@@ -149,6 +149,6 @@
 
 <script src="gh-sync.js?v=1"></script>
 <script src="export-xlsx.js?v=1"></script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>

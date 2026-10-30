@@ -137,6 +137,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   A('不支持画中画时按钮自动隐藏（手机端不显示）', !!pipBtn && pipBtn.hidden === true);
   if (pipBtn) click(rx.w, pipBtn);   /* 不应崩溃，只 toast 提示 */
   A('不支持时点击仅提示不报错', true);
+  /* 10.1 悬浮窗按钮在右上角（顶栏、设置按钮之前）且用醒目配色区分 */
+  const tb = rx.w.document.querySelector('.topbar');
+  A('悬浮窗按钮位于右上角顶栏内', !!pipBtn && tb.contains(pipBtn), pipBtn && pipBtn.parentElement.className);
+  A('悬浮窗按钮在「设置」按钮之前（更靠右）', !!pipBtn && pipBtn.nextElementSibling && pipBtn.nextElementSibling.id === 'settingsBtn');
+  A('悬浮窗按钮使用 pip-accent 醒目配色', !!pipBtn && pipBtn.classList.contains('pip-accent'));
+  /* 10.2 悬浮窗小球/面板双模式代码完整 */
+  A('小球模式（pipBuildBall）已实现', /pipBuildBall/.test(appJs) && /pip-ball/.test(appJs));
+  A('面板每页 5 条 + 上下页翻页', /pipPageN = 5/.test(appJs) && /data-pip="prev"/.test(appJs) && /data-pip="next"/.test(appJs));
+  A('面板带分类/项目筛选（含子级）', /pipCat/.test(appJs) && /pipProj/.test(appJs) && /inCat\(x\.v\.cat, pipSt\.cat\)/.test(appJs));
+  A('滚轮翻页与「放大回网页」均已实现', /addEventListener\('wheel'/.test(appJs) && /pipGoHome/.test(appJs));
 
   console.log(fails ? '\n共 ' + fails + ' 项失败' : '\n全部通过');
   process.exit(fails ? 1 : 0);

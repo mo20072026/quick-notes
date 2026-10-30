@@ -158,6 +158,13 @@ a { color: #0969da; }
 .btn.dark:hover { background: #3a4149; }
 .btn.ghost { background: transparent; }
 .btn.ghost:hover { background: #eef1f4; }
+/* 悬浮窗入口：右上角醒目配色（与普通按钮区分） */
+.btn.pip-accent {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #fff; border-color: #1d4ed8; font-weight: 600;
+  box-shadow: 0 1px 4px rgba(29, 78, 216, .35);
+}
+.btn.pip-accent:hover { filter: brightness(1.1); background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
 .btn.sm { padding: 4px 10px; font-size: 12.5px; }
 .btn:disabled { opacity: .5; cursor: default; }
 .row { display: flex; gap: 6px; flex-wrap: wrap; }

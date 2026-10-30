@@ -1054,15 +1054,26 @@
     hide.forEach(function (k) { var el = $(k); if (el) el.hidden = true; });
   }
   /* ---------- 桌面悬浮窗（文档画中画：仅电脑端 Chrome/Edge，系统级置顶） ---------- */
+  /* 两种形态：panel = 面板（筛选+记录+翻页） / ball = 缩成小球，点击展开 */
   var pipWin = null;
+  var pipSt = { mode: 'panel', cat: '', proj: '', page: 1 };
+  var pipPageN = 5;                                   /* 每页最多 5 条 */
   function pipSupported() {
     return typeof window.documentPictureInPicture !== 'undefined'
       && !(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);  /* 触屏/手机不显示 */
   }
+  function pipSize() {
+    var d = pipSt.mode === 'ball' ? { w: 88, h: 88 } : { w: 340, h: 480 };
+    try { pipWin.resizeTo(d.w, d.h); } catch (e) { /* 个别版本不允许脚本改尺寸，忽略 */ }
+  }
   function pipOpen() {
     if (!pipSupported()) { toast('悬浮窗需要电脑版 Chrome 或 Edge 浏览器'); return; }
-    if (pipWin && !pipWin.closed) { pipWin.focus(); return; }
-    window.documentPictureInPicture.requestWindow({ width: 340, height: 460 }).then(function (w) {
+    if (pipWin && !pipWin.closed) {
+      pipSt.mode = 'panel'; pipSt.page = 1; pipSize(); pipBuild(); try { pipWin.focus(); } catch (e) { }
+      return;
+    }
+    pipSt = { mode: 'panel', cat: '', proj: '', page: 1 };
+    window.documentPictureInPicture.requestWindow({ width: 340, height: 480 }).then(function (w) {
       pipWin = w;
       /* 继承主页面样式，再补悬浮窗专属规则 */
       Array.prototype.forEach.call(document.querySelectorAll('link[rel="stylesheet"], style'), function (el) {
@@ -1071,68 +1082,175 @@
       var st = w.document.createElement('style');
       st.textContent =
         '.pip-wrap{display:flex;flex-direction:column;height:100vh;font:13px/1.55 system-ui,-apple-system,"Microsoft YaHei",sans-serif;background:#f6f7f9;color:#1f2328}'
-        + '.pip-head{padding:8px 12px;background:#fff;border-bottom:1px solid #e4e7eb;font-weight:600;display:flex;align-items:center;gap:6px}'
-        + '.pip-head .pip-n{margin-left:auto;background:#eef3fe;color:#1d4ed8;border-radius:10px;padding:0 8px;font-size:11.5px;font-weight:600}'
-        + '.pip-add{padding:8px 10px;background:#fff;border-bottom:1px solid #e4e7eb;display:flex;gap:6px;align-items:flex-end}'
+        + '.pip-head{padding:7px 10px;background:#fff;border-bottom:1px solid #e4e7eb;font-weight:600;display:flex;align-items:center;gap:6px}'
+        + '.pip-head .pip-n{background:#eef3fe;color:#1d4ed8;border-radius:10px;padding:0 8px;font-size:11.5px;font-weight:600}'
+        + '.pip-head .pip-hb{margin-left:auto;display:flex;gap:5px}'
+        + '.pip-hb button{border:1px solid #d0d7de;background:#fff;border-radius:7px;padding:2px 8px;font-size:12px;cursor:pointer;color:#1f2328}'
+        + '.pip-hb button:hover{background:#eef1f4}'
+        + '.pip-filters{display:flex;gap:6px;padding:7px 10px;background:#fff;border-bottom:1px solid #e4e7eb}'
+        + '.pip-filters select{flex:1;min-width:0;border:1px solid #d0d7de;border-radius:7px;padding:4px 6px;font-family:inherit;font-size:12.5px;background:#fff}'
+        + '.pip-add{padding:7px 10px;background:#fff;border-bottom:1px solid #e4e7eb;display:flex;gap:6px;align-items:flex-end}'
         + '.pip-add textarea{flex:1;border:1px solid #d0d7de;border-radius:8px;padding:6px 8px;font:inherit;resize:none}'
         + '.pip-add textarea:focus{outline:2px solid #bcd3f8;border-color:#1d4ed8}'
         + '.pip-list{flex:1;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:6px}'
         + '.pip-item{background:#fff;border:1px solid #e4e7eb;border-left:4px solid #d0d7de;border-radius:8px;padding:6px 9px;cursor:pointer}'
         + '.pip-item:hover{border-color:#9ab3e0;background:#fafbff}'
         + '.pip-t{font-size:11px;color:#8b949e;margin-bottom:2px}'
-        + '.pip-x{word-break:break-word;white-space:pre-wrap}'
+        + '.pip-x{word-break:break-word;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}'
         + '.pip-path{font-size:11px;color:#57606a;margin-top:2px}'
-        + '.pip-foot{padding:5px 12px;font-size:10.5px;color:#8b949e;border-top:1px solid #e4e7eb;background:#fff}'
-        + '.pip-toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:#1f2328;color:#fff;border-radius:8px;padding:5px 14px;font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}'
+        + '.pip-empty{color:#8b949e;text-align:center;padding:24px 0}'
+        + '.pip-pager{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border-top:1px solid #e4e7eb}'
+        + '.pip-pager button{border:1px solid #d0d7de;background:#fff;border-radius:7px;padding:2px 10px;cursor:pointer;font-size:13px;color:#1f2328}'
+        + '.pip-pager button:disabled{opacity:.4;cursor:default}'
+        + '.pip-pginfo{font-size:12px;color:#57606a;white-space:nowrap}'
+        + '.pip-pager .pip-foot{margin-left:auto;font-size:10.5px;color:#8b949e}'
+        + '.pip-ball{width:100%;height:100vh;display:flex;align-items:center;justify-content:center;cursor:pointer}'
+        + '.pip-ball .b{position:relative;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#1d4ed8);box-shadow:0 4px 14px rgba(29,78,216,.4);display:flex;align-items:center;justify-content:center;font-size:26px;user-select:none;transition:transform .15s}'
+        + '.pip-ball .b:hover{transform:scale(1.07)}'
+        + '.pip-ball .bn{position:absolute;top:-4px;right:-7px;background:#ef4444;color:#fff;border-radius:10px;font-size:10.5px;padding:0 5px;font-weight:700;line-height:16px}'
+        + '.pip-toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:#1f2328;color:#fff;border-radius:8px;padding:5px 14px;font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;white-space:nowrap}'
         + '.pip-toast.on{opacity:.92}';
       w.document.head.appendChild(st);
-      w.document.body.innerHTML = '<div class="pip-wrap">'
-        + '<div class="pip-head">📋 随手记<span class="pip-n" id="pipN"></span></div>'
-        + '<div class="pip-add"><textarea id="pipText" rows="2" placeholder="随手记点什么…（Ctrl+Enter 保存）"></textarea>'
-        + '<button class="btn dark sm" id="pipSave">保存</button></div>'
-        + '<div class="pip-list" id="pipList"></div>'
-        + '<div class="pip-foot">与主页面实时同步 · 点条目回主页面定位</div></div>';
-      function pipToast(msg) {
-        var t = w.document.getElementById('pipToast');
-        if (!t) {
-          t = w.document.createElement('div');
-          t.id = 'pipToast'; t.className = 'pip-toast';
-          w.document.body.appendChild(t);
-        }
-        t.textContent = msg; t.classList.add('on');
-        clearTimeout(t._h);
-        t._h = setTimeout(function () { t.classList.remove('on'); }, 1600);
-      }
+      w.addEventListener('pagehide', function () { pipWin = null; });
+      pipBuild();
+    }).catch(function (e) { toast('悬浮窗打开失败：' + (e && e.message || e)); });
+  }
+  function pipToast(msg) {
+    if (!pipWin || pipWin.closed) return;
+    var w = pipWin, t = w.document.getElementById('pipToast');
+    if (!t) {
+      t = w.document.createElement('div');
+      t.id = 'pipToast'; t.className = 'pip-toast';
+      w.document.body.appendChild(t);
+    }
+    t.textContent = msg; t.classList.add('on');
+    clearTimeout(t._h);
+    t._h = setTimeout(function () { t.classList.remove('on'); }, 1600);
+  }
+  /* 缩小球 / 展开面板 */
+  function pipSetMode(mode) {
+    pipSt.mode = mode;
+    if (mode === 'panel') pipSt.page = 1;
+    pipSize();
+    pipBuild();
+  }
+  /* 放大回正常网页：把主页面调到前台 */
+  function pipGoHome() {
+    try { window.focus(); } catch (e) { }
+    pipToast('已切回主页面（未响应请点任务栏的「随手记」）');
+  }
+  /* 悬浮窗数据：按所选分类/项目（含子级）过滤，最新在前 */
+  function pipNotes() {
+    return notes().filter(function (x) {
+      if (pipSt.cat && !inCat(x.v.cat, pipSt.cat)) return false;
+      if (pipSt.proj && !inCat(x.v.proj, pipSt.proj)) return false;
+      return true;
+    }).sort(function (a, b) { return (b.v.c || 0) - (a.v.c || 0); });
+  }
+  function pipBuild() {
+    var w = pipWin; if (!w || w.closed) return;
+    if (pipSt.mode === 'ball') pipBuildBall(w); else pipBuildPanel(w);
+  }
+  function pipBuildBall(w) {
+    w.document.body.innerHTML = '<div class="pip-ball" id="pipBall" title="点击展开随手记">'
+      + '<div class="b">📋<span class="bn" id="pipBallN"></span></div></div>';
+    w.document.getElementById('pipBall').addEventListener('click', function () { pipSetMode('panel'); });
+    pipRender();
+  }
+  function pipBuildPanel(w) {
+    w.document.body.innerHTML = '<div class="pip-wrap">'
+      + '<div class="pip-head">📋 随手记<span class="pip-n" id="pipN"></span>'
+      + '<span class="pip-hb">'
+      + '<button data-pip="home" title="放大回正常网页">⤢ 网页</button>'
+      + '<button data-pip="ball" title="缩成小球">⚫</button>'
+      + '</span></div>'
+      + '<div class="pip-filters">'
+      + '<select id="pipCat" title="按分类筛选（含子分类）"></select>'
+      + '<select id="pipProj" title="按项目筛选（含子项目）"></select>'
+      + '</div>'
+      + '<div class="pip-add"><textarea id="pipText" rows="2" placeholder="随手记点什么…（Ctrl+Enter 保存，存入所选分类/项目）"></textarea>'
+      + '<button class="btn dark sm" data-pip="save">保存</button></div>'
+      + '<div class="pip-list" id="pipList"></div>'
+      + '<div class="pip-pager">'
+      + '<button data-pip="prev" id="pipPrev">‹ 上一页</button>'
+      + '<span class="pip-pginfo" id="pipPg"></span>'
+      + '<button data-pip="next" id="pipNext">下一页 ›</button>'
+      + '<span class="pip-foot">滚轮翻页 · 点条目回网页</span>'
+      + '</div></div>';
+    function pipAdd() {
       var ta = w.document.getElementById('pipText');
-      function pipAdd() {
-        var text = ta.value.trim();
-        if (!text) { pipToast('先写点内容'); return; }
-        var tags = autoKeywords(text);
-        setNote(genId(), { kind: 'note', text: text, tags: tags, c: Date.now(), del: 0 });
-        ta.value = '';
-        render();          /* 主页面重渲染（内部会再调 pipRender 刷新本窗） */
-        pipToast('已保存' + (tags.length ? ' · 自动标签 #' + tags.join(' #') : ''));
+      var text = ta.value.trim();
+      if (!text) { pipToast('先写点内容'); return; }
+      var tags = autoKeywords(text);
+      var obj = { kind: 'note', text: text, tags: tags, c: Date.now(), del: 0 };
+      if (pipSt.cat) obj.cat = pipSt.cat;
+      if (pipSt.proj) obj.proj = pipSt.proj;
+      setNote(genId(), obj);
+      ta.value = '';
+      render();          /* 主页面重渲染（内部会再调 pipRender 刷新本窗） */
+      pipToast('已保存' + (tags.length ? ' · 自动标签 #' + tags.join(' #') : ''));
+    }
+    /* 统一事件委托 */
+    w.document.body.addEventListener('click', function (e) {
+      var act = e.target.closest('[data-pip]');
+      if (act) {
+        var a = act.getAttribute('data-pip');
+        if (a === 'ball') { pipSetMode('ball'); return; }
+        if (a === 'home') { pipGoHome(); return; }
+        if (a === 'prev') { pipSt.page--; pipRender(); return; }
+        if (a === 'next') { pipSt.page++; pipRender(); return; }
+        if (a === 'save') { pipAdd(); return; }
       }
-      w.document.getElementById('pipSave').addEventListener('click', pipAdd);
-      ta.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') pipAdd(); });
-      w.document.getElementById('pipList').addEventListener('click', function (e) {
-        var it = e.target.closest('[data-pipid]');
-        if (!it) return;
+      var it = e.target.closest('[data-pipid]');
+      if (it) {
         try { window.focus(); } catch (err) { /* 某些浏览器禁止脚本抢焦点 */ }
         gotoNote(it.getAttribute('data-pipid'));
-      });
-      w.addEventListener('pagehide', function () { pipWin = null; });
-      pipRender();
-    }).catch(function (e) { toast('悬浮窗打开失败：' + (e && e.message || e)); });
+      }
+    });
+    w.document.getElementById('pipCat').addEventListener('change', function (e) {
+      pipSt.cat = e.target.value; pipSt.page = 1; pipRender();
+    });
+    w.document.getElementById('pipProj').addEventListener('change', function (e) {
+      pipSt.proj = e.target.value; pipSt.page = 1; pipRender();
+    });
+    w.document.getElementById('pipText').addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') pipAdd();
+    });
+    /* 滚轮翻页 */
+    w.document.getElementById('pipList').addEventListener('wheel', function (e) {
+      var pages = Math.max(1, Math.ceil(pipNotes().length / pipPageN));
+      if (e.deltaY > 0 && pipSt.page < pages) { pipSt.page++; pipRender(); }
+      else if (e.deltaY < 0 && pipSt.page > 1) { pipSt.page--; pipRender(); }
+    }, { passive: true });
+    pipRender();
   }
   function pipRender() {
     if (!pipWin || pipWin.closed) return;
-    var w = pipWin, box = w.document.getElementById('pipList');
-    if (!box) return;
-    var ns = notes().slice().sort(function (a, b) { return (b.v.c || 0) - (a.v.c || 0); }).slice(0, 80);
+    var w = pipWin;
+    if (pipSt.mode === 'ball') {
+      var bn = w.document.getElementById('pipBallN');
+      if (bn) bn.textContent = notes().length || '';
+      return;
+    }
+    var list = w.document.getElementById('pipList');
+    if (!list) return;
+    var cs = w.document.getElementById('pipCat'), ps = w.document.getElementById('pipProj');
+    if (cs && !cs.options.length) {
+      cs.innerHTML = '<option value="">📂 全部分类</option>' + treeOptions('cat', pipSt.cat);
+      cs.value = pipSt.cat || '';
+    }
+    if (ps && !ps.options.length) {
+      ps.innerHTML = '<option value="">📌 全部项目</option>' + treeOptions('proj', pipSt.proj);
+      ps.value = pipSt.proj || '';
+    }
+    var ns = pipNotes();
     var nEl = w.document.getElementById('pipN');
     if (nEl) nEl.textContent = notes().length + ' 条';
-    box.innerHTML = ns.map(function (x) {
+    var pages = Math.max(1, Math.ceil(ns.length / pipPageN));
+    if (pipSt.page > pages) pipSt.page = pages;
+    if (pipSt.page < 1) pipSt.page = 1;
+    var slice = ns.slice((pipSt.page - 1) * pipPageN, pipSt.page * pipPageN);
+    list.innerHTML = slice.map(function (x) {
       var v = x.v, bits = [];
       if (v.cat) bits.push('📂 ' + esc(catPath(v.cat).join('/')));
       if (v.proj) bits.push('📌 ' + esc(catPath(v.proj).join('/')));
@@ -1141,7 +1259,12 @@
         + '<div class="pip-x">' + esc(v.text || '') + '</div>'
         + (bits.length ? '<div class="pip-path">' + bits.join(' ｜ ') + '</div>' : '')
         + '</div>';
-    }).join('') || '<div class="muted" style="text-align:center;padding:24px 0">暂无记录，在上面输入第一条吧</div>';
+    }).join('') || '<div class="pip-empty">当前筛选下暂无记录</div>';
+    var pg = w.document.getElementById('pipPg');
+    if (pg) pg.textContent = (ns.length ? pipSt.page : 0) + ' / ' + pages + ' 页';
+    var pv = w.document.getElementById('pipPrev'), nx = w.document.getElementById('pipNext');
+    if (pv) pv.disabled = pipSt.page <= 1;
+    if (nx) nx.disabled = pipSt.page >= pages;
   }
 
   document.addEventListener('DOMContentLoaded', function () {
