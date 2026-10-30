@@ -433,6 +433,7 @@
     markActiveNav();
     $('editor').style.display = state.view.type === 'trash' ? 'none' : '';
     populatePicker();
+    pipRender();   /* 悬浮窗开着时同步刷新 */
   }
 
   /* 输入区的分类/项目选择器：默认跟随当前视图 */
@@ -472,6 +473,7 @@
   function renderRo() {
     document.body.classList.add('ro-mode');
     $('editor').hidden = true;
+    var pv = $('pipBtn'); if (pv) pv.hidden = true;
     var rc = $('roCount'); if (rc) rc.textContent = RO.length;
     $('roBanner').hidden = false;
     $('settingsBtn') && ($('settingsBtn').hidden = true);
@@ -881,6 +883,12 @@
     });
 
     $('addBtn').addEventListener('click', addNote);
+    /* 悬浮窗按钮：仅电脑端 Chrome/Edge 显示 */
+    var pb = $('pipBtn');
+    if (pb) {
+      pb.hidden = !pipSupported();
+      pb.addEventListener('click', pipOpen);
+    }
     $('noteText').addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') addNote();
     });
@@ -1042,9 +1050,100 @@
       + '<button class="linkbtn" data-act="exitrohome">进入我的随手记</button>'
       + '<span class="muted" style="font-size:11.5px"> （' + esc(String(err && err.message || err).slice(0, 60)) + '）</span>';
     var ed = $('editor'); if (ed) ed.hidden = true;
-    var hide = ['menuBtn', 'settingsBtn'];
+    var hide = ['menuBtn', 'settingsBtn', 'pipBtn'];
     hide.forEach(function (k) { var el = $(k); if (el) el.hidden = true; });
   }
+  /* ---------- 桌面悬浮窗（文档画中画：仅电脑端 Chrome/Edge，系统级置顶） ---------- */
+  var pipWin = null;
+  function pipSupported() {
+    return typeof window.documentPictureInPicture !== 'undefined'
+      && !(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);  /* 触屏/手机不显示 */
+  }
+  function pipOpen() {
+    if (!pipSupported()) { toast('悬浮窗需要电脑版 Chrome 或 Edge 浏览器'); return; }
+    if (pipWin && !pipWin.closed) { pipWin.focus(); return; }
+    window.documentPictureInPicture.requestWindow({ width: 340, height: 460 }).then(function (w) {
+      pipWin = w;
+      /* 继承主页面样式，再补悬浮窗专属规则 */
+      Array.prototype.forEach.call(document.querySelectorAll('link[rel="stylesheet"], style'), function (el) {
+        w.document.head.appendChild(el.cloneNode(true));
+      });
+      var st = w.document.createElement('style');
+      st.textContent =
+        '.pip-wrap{display:flex;flex-direction:column;height:100vh;font:13px/1.55 system-ui,-apple-system,"Microsoft YaHei",sans-serif;background:#f6f7f9;color:#1f2328}'
+        + '.pip-head{padding:8px 12px;background:#fff;border-bottom:1px solid #e4e7eb;font-weight:600;display:flex;align-items:center;gap:6px}'
+        + '.pip-head .pip-n{margin-left:auto;background:#eef3fe;color:#1d4ed8;border-radius:10px;padding:0 8px;font-size:11.5px;font-weight:600}'
+        + '.pip-add{padding:8px 10px;background:#fff;border-bottom:1px solid #e4e7eb;display:flex;gap:6px;align-items:flex-end}'
+        + '.pip-add textarea{flex:1;border:1px solid #d0d7de;border-radius:8px;padding:6px 8px;font:inherit;resize:none}'
+        + '.pip-add textarea:focus{outline:2px solid #bcd3f8;border-color:#1d4ed8}'
+        + '.pip-list{flex:1;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:6px}'
+        + '.pip-item{background:#fff;border:1px solid #e4e7eb;border-left:4px solid #d0d7de;border-radius:8px;padding:6px 9px;cursor:pointer}'
+        + '.pip-item:hover{border-color:#9ab3e0;background:#fafbff}'
+        + '.pip-t{font-size:11px;color:#8b949e;margin-bottom:2px}'
+        + '.pip-x{word-break:break-word;white-space:pre-wrap}'
+        + '.pip-path{font-size:11px;color:#57606a;margin-top:2px}'
+        + '.pip-foot{padding:5px 12px;font-size:10.5px;color:#8b949e;border-top:1px solid #e4e7eb;background:#fff}'
+        + '.pip-toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:#1f2328;color:#fff;border-radius:8px;padding:5px 14px;font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}'
+        + '.pip-toast.on{opacity:.92}';
+      w.document.head.appendChild(st);
+      w.document.body.innerHTML = '<div class="pip-wrap">'
+        + '<div class="pip-head">📋 随手记<span class="pip-n" id="pipN"></span></div>'
+        + '<div class="pip-add"><textarea id="pipText" rows="2" placeholder="随手记点什么…（Ctrl+Enter 保存）"></textarea>'
+        + '<button class="btn dark sm" id="pipSave">保存</button></div>'
+        + '<div class="pip-list" id="pipList"></div>'
+        + '<div class="pip-foot">与主页面实时同步 · 点条目回主页面定位</div></div>';
+      function pipToast(msg) {
+        var t = w.document.getElementById('pipToast');
+        if (!t) {
+          t = w.document.createElement('div');
+          t.id = 'pipToast'; t.className = 'pip-toast';
+          w.document.body.appendChild(t);
+        }
+        t.textContent = msg; t.classList.add('on');
+        clearTimeout(t._h);
+        t._h = setTimeout(function () { t.classList.remove('on'); }, 1600);
+      }
+      var ta = w.document.getElementById('pipText');
+      function pipAdd() {
+        var text = ta.value.trim();
+        if (!text) { pipToast('先写点内容'); return; }
+        var tags = autoKeywords(text);
+        setNote(genId(), { kind: 'note', text: text, tags: tags, c: Date.now(), del: 0 });
+        ta.value = '';
+        render();          /* 主页面重渲染（内部会再调 pipRender 刷新本窗） */
+        pipToast('已保存' + (tags.length ? ' · 自动标签 #' + tags.join(' #') : ''));
+      }
+      w.document.getElementById('pipSave').addEventListener('click', pipAdd);
+      ta.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') pipAdd(); });
+      w.document.getElementById('pipList').addEventListener('click', function (e) {
+        var it = e.target.closest('[data-pipid]');
+        if (!it) return;
+        try { window.focus(); } catch (err) { /* 某些浏览器禁止脚本抢焦点 */ }
+        gotoNote(it.getAttribute('data-pipid'));
+      });
+      w.addEventListener('pagehide', function () { pipWin = null; });
+      pipRender();
+    }).catch(function (e) { toast('悬浮窗打开失败：' + (e && e.message || e)); });
+  }
+  function pipRender() {
+    if (!pipWin || pipWin.closed) return;
+    var w = pipWin, box = w.document.getElementById('pipList');
+    if (!box) return;
+    var ns = notes().slice().sort(function (a, b) { return (b.v.c || 0) - (a.v.c || 0); }).slice(0, 80);
+    var nEl = w.document.getElementById('pipN');
+    if (nEl) nEl.textContent = notes().length + ' 条';
+    box.innerHTML = ns.map(function (x) {
+      var v = x.v, bits = [];
+      if (v.cat) bits.push('📂 ' + esc(catPath(v.cat).join('/')));
+      if (v.proj) bits.push('📌 ' + esc(catPath(v.proj).join('/')));
+      return '<div class="pip-item" data-pipid="' + esc(x.id) + '">'
+        + '<div class="pip-t">🕐 ' + fmtT(v.c) + '</div>'
+        + '<div class="pip-x">' + esc(v.text || '') + '</div>'
+        + (bits.length ? '<div class="pip-path">' + bits.join(' ｜ ') + '</div>' : '')
+        + '</div>';
+    }).join('') || '<div class="muted" style="text-align:center;padding:24px 0">暂无记录，在上面输入第一条吧</div>';
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     bind();
     if (checkShare()) { renderRo(); return; }

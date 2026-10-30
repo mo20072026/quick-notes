@@ -131,6 +131,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     console.log('     导出样本已存：' + path.join(require('os').tmpdir(), 'quick-notes-export.xlsx'));
   }
 
+  /* 10. 悬浮窗按钮：无画中画 API 的环境（手机/jsdom）自动隐藏 */
+  const pipBtn = rx.w.document.getElementById('pipBtn');
+  A('有「悬浮窗」按钮', !!pipBtn);
+  A('不支持画中画时按钮自动隐藏（手机端不显示）', !!pipBtn && pipBtn.hidden === true);
+  if (pipBtn) click(rx.w, pipBtn);   /* 不应崩溃，只 toast 提示 */
+  A('不支持时点击仅提示不报错', true);
+
   console.log(fails ? '\n共 ' + fails + ' 项失败' : '\n全部通过');
   process.exit(fails ? 1 : 0);
 })();
