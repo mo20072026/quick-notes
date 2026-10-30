@@ -120,7 +120,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   A('点击后触发导出', !!cap, cap && cap.name);
   if (cap) {
     A('文件名后缀 .xlsx', /\.xlsx$/.test(cap.name));
-    A('表头 9 列齐全', cap.opts.columns.map(c => c.title).join(',') === '序号,内容,分类,项目,标签,创建时间,修改时间,提醒时间,状态',
+    A('表头 10 列齐全（含待办）', cap.opts.columns.map(c => c.title).join(',') === '序号,内容,分类,项目,标签,待办,创建时间,修改时间,提醒时间,状态',
       cap.opts.columns.map(c => c.title).join(','));
     A('数据行内容正确（含分类路径与标签）',
       cap.opts.rows.length === 1 && /CBI20261123/.test(cap.opts.rows[0][1])
@@ -153,6 +153,17 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   A('canvas 压缩与二次压缩均已实现', /compressImg/.test(appJs) && /220000/.test(appJs));
   A('卡片缩略图与灯箱（点击看大图）已实现', /note-imgs/.test(appJs) && /imgview/.test(appJs) && /showImgView/.test(appJs));
   A('悬浮窗含图记录显示 🖼 徽标', /🖼 /.test(appJs));
+  /* 12. 待办标记 */
+  A('输入区有待办选择（无/待办/已完成）', /inTodo/.test(html) && /value="todo"/.test(html) && /value="done"/.test(html));
+  A('保存记录时写入 todo 字段并在保存后重置', /obj\.todo = it/.test(appJs) && /\$\('inTodo'\)\.value = ''/.test(appJs));
+  A('卡片有待办徽章与「待办」按钮（循环切换）', /todobadge/.test(appJs) && /data-act="todo"/.test(appJs) && /'done' \? '' : 'todo'/.test(appJs));
+  A('悬浮窗待办条目带 🔖/✅ 前缀', /v\.todo === 'todo' \? '🔖 '/.test(appJs));
+  A('Excel 导出含「待办」列', /title: '待办'/.test(appJs));
+  /* 13. 不做自动关键词提取 */
+  A('已移除自动关键词提取（不填标签就没有标签）', !/autoKeywords/.test(appJs));
+  A('标签输入框提示已更新（不承诺自动提取）', /标签（空格分隔，可不填）/.test(html));
+  A('悬浮窗已移除快捷输入（只做展示）', !/pipText/.test(appJs) && !/pip-add/.test(appJs));
+  A('小球已缩小（48px 窗口 / 40px 球）', /\{ w: 48, h: 48 \}/.test(appJs) && /width:40px;height:40px/.test(appJs));
 
   console.log(fails ? '\n共 ' + fails + ' 项失败' : '\n全部通过');
   process.exit(fails ? 1 : 0);

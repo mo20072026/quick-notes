@@ -114,6 +114,13 @@ a { color: #0969da; }
 .rembadge.over { background: #ffebe9; color: #cf222e; border-color: #f1b8b4; animation: blink 1.2s infinite; }
 .rembadge.done { background: #f0f3f6; color: #8b949e; border-color: #d8dee4; font-weight: 400; animation: none; }
 
+/* 待办徽章 */
+.todobadge {
+  display: inline-block; background: #fff8c5; color: #9a6700; border: 1px solid #d4a72c;
+  border-radius: 10px; padding: 0 8px; font-size: 12px; font-weight: 600;
+}
+.todobadge.done { background: #dafbe1; color: #1a7f37; border-color: #aceebb; font-weight: 600; }
+
 /* 提醒弹窗 */
 #remModal {
   position: fixed; inset: 0; z-index: 200; background: rgba(20, 30, 50, .45);
