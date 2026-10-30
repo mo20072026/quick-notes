@@ -158,6 +158,21 @@ a { color: #0969da; }
 .btn.dark:hover { background: #3a4149; }
 .btn.ghost { background: transparent; }
 .btn.ghost:hover { background: #eef1f4; }
+/* 图片/截图快记 */
+.pendimgs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.pendimg { position: relative; display: inline-block; }
+.pendimg img { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; border: 1px solid #e4e7eb; display: block; }
+.pendimg b {
+  position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; line-height: 16px;
+  background: #1f2328; color: #fff; border-radius: 50%; text-align: center; font-size: 12px; cursor: pointer;
+}
+.note-imgs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.note-img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; border: 1px solid #e4e7eb; cursor: zoom-in; }
+.note-img:hover { border-color: #9ab3e0; }
+.imgview { position: fixed; inset: 0; background: rgba(0,0,0,.78); display: none; z-index: 99; align-items: center; justify-content: center; flex-direction: column; cursor: zoom-out; }
+.imgview.on { display: flex; }
+.imgview img { max-width: 92vw; max-height: 86vh; border-radius: 8px; box-shadow: 0 8px 40px rgba(0,0,0,.5); }
+.imgview-tip { color: #c9d1d9; font-size: 12px; margin-top: 10px; }
 /* 悬浮窗入口：右上角醒目配色（与普通按钮区分） */
 .btn.pip-accent {
   background: linear-gradient(135deg, #3b82f6, #1d4ed8);

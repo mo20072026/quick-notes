@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>随手记 · 分类笔记与项目记录</title>
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 <header class="topbar">
@@ -105,9 +105,12 @@
         <button class="mini" id="inProjAdd" title="新建项目（重名自动选用已有）">＋新建</button>
       </div>
       <div class="composer-row">
+        <button class="btn ghost sm" id="imgBtn" title="添加图片（也可在输入框直接粘贴截图）">📷</button>
+        <input type="file" id="imgPick" accept="image/*" multiple hidden>
         <input id="noteTags" type="text" placeholder="标签（空格分隔，可留空，留空自动提取）">
         <button class="btn dark" id="addBtn">＋ 保存记录</button>
       </div>
+      <div id="pendImgs" class="pendimgs"></div>
     </div>
 
     <div class="toolbar">
@@ -149,6 +152,6 @@
 
 <script src="gh-sync.js?v=1"></script>
 <script src="export-xlsx.js?v=1"></script>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

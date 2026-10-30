@@ -109,7 +109,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   let rx = boot('https://mo20072026.github.io/quick-notes/');
   rx.store.set('c1', { kind: 'cat', name: '工作', parent: '', del: 0 });
   rx.store.set('c1b', { kind: 'cat', name: '子分类', parent: 'c1', del: 0 });
-  rx.store.set('n1', { kind: 'note', text: '导出测试 CBI20261123', tags: ['标签A', '标签B'], cat: 'c1b', c: 1698000000000, del: 0 });
+  rx.store.set('n1', { kind: 'note', text: '导出测试 CBI20261123', tags: ['标签A', '标签B'], cat: 'c1b', c: 1698000000000, del: 0, imgs: ['data:image/jpeg;base64,AAAA'] });
   click(rx.w, rx.w.document.getElementById('nav-all'));
   let cap = null;
   const realBuild = rx.w.XlsxExport.build;
@@ -127,6 +127,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       && cap.opts.rows[0][2] === '工作 / 子分类' && cap.opts.rows[0][4] === '#标签A #标签B',
       JSON.stringify(cap.opts.rows[0]));
     A('生成的是合法 zip（PK 头）', cap.bytes[0] === 0x50 && cap.bytes[1] === 0x4B && cap.bytes.length > 1000, cap.bytes.length + ' 字节');
+    A('含图记录在 Excel 内容列标注张数', /（含图1张）/.test(cap.opts.rows[0][1]), cap.opts.rows[0][1]);
     fs.writeFileSync(path.join(require('os').tmpdir(), 'quick-notes-export.xlsx'), Buffer.from(cap.bytes));
     console.log('     导出样本已存：' + path.join(require('os').tmpdir(), 'quick-notes-export.xlsx'));
   }
@@ -147,6 +148,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   A('面板每页 5 条 + 上下页翻页', /pipPageN = 5/.test(appJs) && /data-pip="prev"/.test(appJs) && /data-pip="next"/.test(appJs));
   A('面板带分类/项目筛选（含子级）', /pipCat/.test(appJs) && /pipProj/.test(appJs) && /inCat\(x\.v\.cat, pipSt\.cat\)/.test(appJs));
   A('滚轮翻页与「放大回网页」均已实现', /addEventListener\('wheel'/.test(appJs) && /pipGoHome/.test(appJs));
+  /* 11. 图片/截图快记 */
+  A('📷 选图 + 粘贴截图 + 待添加缩略图均已接入', /imgBtn/.test(html) && /imgPick/.test(html) && /pendImgs/.test(html) && /addImgFile/.test(appJs));
+  A('canvas 压缩与二次压缩均已实现', /compressImg/.test(appJs) && /220000/.test(appJs));
+  A('卡片缩略图与灯箱（点击看大图）已实现', /note-imgs/.test(appJs) && /imgview/.test(appJs) && /showImgView/.test(appJs));
+  A('悬浮窗含图记录显示 🖼 徽标', /🖼 /.test(appJs));
 
   console.log(fails ? '\n共 ' + fails + ' 项失败' : '\n全部通过');
   process.exit(fails ? 1 : 0);

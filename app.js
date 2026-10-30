@@ -304,7 +304,13 @@
         + '<div class="edit-btns"><button class="btn dark sm" data-act="saveedit" data-id="' + esc(id) + '">保存</button>'
         + '<button class="btn ghost sm" data-act="canceledit">取消</button></div></div>';
     } else {
-      body = '<div class="note-text">' + hlText(v.text) + '</div>';
+      var imgsHtml = '';
+      if ((v.imgs || []).length) {
+        imgsHtml = '<div class="note-imgs">' + v.imgs.map(function (d, i) {
+          return '<img class="note-img" src="' + d + '" alt="图' + (i + 1) + '" data-act="imgview" data-id="' + esc(id) + '" data-i="' + i + '" title="点击查看大图">';
+        }).join('') + '</div>';
+      }
+      body = '<div class="note-text">' + hlText(v.text) + '</div>' + imgsHtml;
     }
     var timeStr = fmtT(v.c) + (v.u && v.u !== v.c ? ' · 修改于 ' + fmtT(v.u) : '');
     var remBadge = '';
@@ -500,6 +506,59 @@
 
   /* ---------- 操作 ---------- */
   function setNote(id, obj) { GhSync.set(id, obj); }
+  /* ---------- 图片/截图快记 ---------- */
+  var pendingImgs = [];            /* 待随下一条记录保存的图片（压缩后 dataURL） */
+  var IMG_MAX = 4;                 /* 每条最多张数 */
+  function compressImg(dataUrl, maxW, q) {
+    return new Promise(function (res, rej) {
+      var im = new Image();
+      im.onload = function () {
+        var w = im.naturalWidth || im.width || maxW, h = im.naturalHeight || im.height || maxW;
+        var r = Math.min(1, maxW / w);
+        var cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(w * r));
+        cv.height = Math.max(1, Math.round(h * r));
+        cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+        res(cv.toDataURL('image/jpeg', q));
+      };
+      im.onerror = function () { rej(new Error('图片解码失败')); };
+      im.src = dataUrl;
+    });
+  }
+  function addImgFile(file) {
+    if (!file || !/^image\//.test(file.type || '')) return;
+    if (pendingImgs.length >= IMG_MAX) { toast('每条记录最多 ' + IMG_MAX + ' 张图'); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      compressImg(String(rd.result), 1280, 0.62).then(function (d1) {
+        /* 仍偏大则二次压缩，控制同步体积 */
+        return d1.length > 220000 ? compressImg(d1, 800, 0.45) : d1;
+      }).then(function (d) {
+        pendingImgs.push(d);
+        renderPendingImgs();
+        toast('已添加图片 ' + pendingImgs.length + '/' + IMG_MAX);
+      }).catch(function () { toast('图片处理失败，请换一张试试'); });
+    };
+    rd.readAsDataURL(file);
+  }
+  function renderPendingImgs() {
+    var box = $('pendImgs'); if (!box) return;
+    box.innerHTML = pendingImgs.map(function (d, i) {
+      return '<span class="pendimg"><img src="' + d + '" alt="待添加"><b data-act="rmpend" data-i="' + i + '" title="移除">×</b></span>';
+    }).join('') + (pendingImgs.length ? '<span class="muted" style="font-size:11px;align-self:center">' + pendingImgs.length + '/' + IMG_MAX + ' 张 · 随下一条记录保存</span>' : '');
+  }
+  function showImgView(src) {
+    var ov = $('imgView');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'imgView';
+      ov.innerHTML = '<img alt="查看大图"><div class="imgview-tip">点击任意处关闭</div>';
+      document.body.appendChild(ov);
+      ov.addEventListener('click', function () { ov.classList.remove('on'); });
+    }
+    ov.querySelector('img').src = src;
+    ov.classList.add('on');
+  }
   function addNote() {
     var text = $('noteText').value.trim();
     if (!text) { toast('先写点内容'); return; }
@@ -511,8 +570,11 @@
     var ip = $('inProj') ? $('inProj').value : '';
     if (ic) obj.cat = ic;
     if (ip) obj.proj = ip;
+    if (pendingImgs.length) obj.imgs = pendingImgs.slice();
     setNote(genId(), obj);
     $('noteText').value = ''; $('noteTags').value = '';
+    pendingImgs.length = 0;
+    renderPendingImgs();
     if (state.search) { state.search = ''; $('searchBox').value = ''; }
     state.page = 1;
     render();
@@ -592,7 +654,7 @@
       var prj = v.proj && node(v.proj) ? catPath(v.proj).join(' / ') : (v.proj ? String(v.proj) : '');
       return [
         i + 1,
-        v.text || '',
+        (v.text || '') + ((v.imgs || []).length ? '（含图' + v.imgs.length + '张）' : ''),
         cat,
         prj,
         (v.tags || []).map(function (t) { return '#' + t; }).join(' '),
@@ -848,6 +910,12 @@
           setNote(id, Object.assign({}, rv, { del: 0 }));
           renderList(); toast('已恢复'); return;
         }
+        if (act === 'imgview') {
+          var iv = all()[id];
+          var src = iv && iv.imgs && iv.imgs[parseInt(t.getAttribute('data-i'), 10)];
+          if (src) showImgView(src);
+          return;
+        }
         if (act === 'shareone') {
           var sv = all()[id];
           shareNotes([sv], '单条'); return;
@@ -891,6 +959,30 @@
     }
     $('noteText').addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') addNote();
+    });
+    /* 图片/截图快记：📷 选图 + 输入框直接粘贴截图 + 缩略图移除 */
+    var ib = $('imgBtn'), ipk = $('imgPick'), pbox = $('pendImgs');
+    if (ib && ipk) {
+      ib.addEventListener('click', function () { ipk.click(); });
+      ipk.addEventListener('change', function (e) {
+        Array.prototype.forEach.call(e.target.files || [], addImgFile);
+        e.target.value = '';
+      });
+    }
+    if (pbox) {
+      pbox.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-act="rmpend"]');
+        if (b) { pendingImgs.splice(parseInt(b.getAttribute('data-i'), 10) || 0, 1); renderPendingImgs(); }
+      });
+    }
+    $('noteText').addEventListener('paste', function (e) {
+      var items = (e.clipboardData || {}).items || [];
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.indexOf('image/') === 0) {
+          e.preventDefault();
+          addImgFile(items[i].getAsFile());
+        }
+      }
     });
     var sTimer = null;
     $('searchBox').addEventListener('input', function () {
@@ -1256,7 +1348,7 @@
       if (v.proj) bits.push('📌 ' + esc(catPath(v.proj).join('/')));
       return '<div class="pip-item" data-pipid="' + esc(x.id) + '">'
         + '<div class="pip-t">🕐 ' + fmtT(v.c) + '</div>'
-        + '<div class="pip-x">' + esc(v.text || '') + '</div>'
+        + '<div class="pip-x">' + ((v.imgs || []).length ? '🖼 ' : '') + esc(v.text || '') + '</div>'
         + (bits.length ? '<div class="pip-path">' + bits.join(' ｜ ') + '</div>' : '')
         + '</div>';
     }).join('') || '<div class="pip-empty">当前筛选下暂无记录</div>';
